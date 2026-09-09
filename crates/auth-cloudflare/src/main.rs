@@ -12,6 +12,8 @@
 //! auth-cloudflare catalog export yaml|markdown
 //! auth-cloudflare catalog diff [--format json]
 //! auth-cloudflare model inspect <model-id> [--format json]
+//! auth-cloudflare model verify <model-id> [--suite smoke] [--format json]
+//! auth-cloudflare model health [--format json]
 //! auth-cloudflare policy get [--format json]
 //! ```
 //!
@@ -47,6 +49,7 @@ use auth_cloudflare::error::CloudflareError;
 use auth_cloudflare::fetch::{fetch_catalog_from_api, FETCH_TIMEOUT};
 use auth_cloudflare::policy::ModelPolicy;
 use auth_cloudflare::schema::{VersionInfo, CATALOG_SCHEMA_VERSION};
+use auth_cloudflare::verify::{self, SuiteKind};
 use auth_cloudflare::{DEFAULT_MODEL, VERSION};
 
 /// Live catalog fetcher - injectable for hermetic CLI tests (the production
@@ -75,9 +78,7 @@ const EXIT_REMOTE_API: i32 = 3;
 const EXIT_STALE_CACHE: i32 = 4;
 /// Exit code - requested model not found / catalog has no eligible model.
 const EXIT_NO_ELIGIBLE_MODEL: i32 = 5;
-/// Exit code - conformance suite ran but failed acceptance (reserved in
-/// v0.0.1: no conformance command wired yet). Part of the binding 0-7 table.
-#[allow(dead_code)]
+/// Exit code - conformance suite ran but failed acceptance criteria.
 const EXIT_CONFORMANCE: i32 = 6;
 /// Exit code - unsafe configuration / secret-leak risk detected.
 const EXIT_UNSAFE_CONFIG: i32 = 7;
@@ -114,6 +115,8 @@ Usage:
   auth-cloudflare catalog export yaml|markdown
   auth-cloudflare catalog diff [--format json]
   auth-cloudflare model inspect <model-id> [--format json]
+  auth-cloudflare model verify <model-id> [--suite smoke] [--format json]
+  auth-cloudflare model health [--format json]
   auth-cloudflare policy get [--format json]
   auth-cloudflare help
 
@@ -124,13 +127,18 @@ Exit codes (feedback 02, binding):
   3 remote Cloudflare API failure
   4 live API unavailable; stale cache successfully used
   5 requested model not found / no eligible model
-  6 conformance suite failed (reserved in v0.0.1)
+  6 conformance suite ran but failed acceptance criteria
   7 unsafe configuration / secret-leak risk detected
 
 Environment (core precedence, feedback 03/06):
   AUTH_CLOUDFLARE_ACCOUNT_ID, AUTH_CLOUDFLARE_API_TOKEN,
   AUTH_CLOUDFLARE_WORKERS_AI_BASE_URL, AUTH_CLOUDFLARE_CACHE_DIR,
   AUTH_CLOUDFLARE_CONFIG, AUTH_CLOUDFLARE_EXPORT_DIR (export target dir)
+  AUTH_CLOUDFLARE_LIVE_TESTS=1 (opens the live gate for 'model verify';
+  paid inference is refused unless the value is exactly "1")
+  AUTH_CLOUDFLARE_MAX_COST_USD=<budget> (optional conformance budget;
+  reported as cost_estimate_usd in the run report, documented but never
+  enforced)
   Legacy aliases: CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN,
   HERMES_CUSTOM_API_CLOUDFLARE_COM_API_KEY
 ";
@@ -146,6 +154,8 @@ enum Command {
 	CatalogExport { format: ExportFormat },
 	CatalogDiff,
 	ModelInspect { model_id: String },
+	ModelVerify { model_id: String, suite: SuiteKind },
+	ModelHealth,
 	PolicyGet,
 	Help,
 }
@@ -195,11 +205,12 @@ fn run_with_fetch(args: &[String], out: &mut dyn Write, err: &mut dyn Write, fet
 	execute(command, out, err, fetch)
 }
 
-/// Parse args into a command. `--format <value>` / `--format=<value>` may
-/// appear anywhere; everything else is positional. Returns a usage error
-/// message on malformed/unknown input.
+/// Parse args into a command. `--format <value>` / `--format=<value>` and
+/// `--suite <value>` / `--suite=<value>` may appear anywhere; everything else
+/// is positional. Returns a usage error message on malformed/unknown input.
 fn parse_args(args: &[String]) -> Result<(Command, Option<String>), String> {
 	let mut format: Option<String> = None;
+	let mut suite: Option<String> = None;
 	let mut positional: Vec<String> = Vec::new();
 	let mut iter = args.iter();
 	while let Some(arg) = iter.next() {
@@ -210,6 +221,13 @@ fn parse_args(args: &[String]) -> Result<(Command, Option<String>), String> {
 			format = Some(value.clone());
 		} else if let Some(value) = arg.strip_prefix("--format=") {
 			format = Some(value.to_string());
+		} else if arg == "--suite" {
+			let Some(value) = iter.next() else {
+				return Err("--suite requires a value (e.g. --suite smoke)".to_string());
+			};
+			suite = Some(value.clone());
+		} else if let Some(value) = arg.strip_prefix("--suite=") {
+			suite = Some(value.to_string());
 		} else {
 			positional.push(arg.clone());
 		}
@@ -232,21 +250,36 @@ fn parse_args(args: &[String]) -> Result<(Command, Option<String>), String> {
 			_ => return Err(format!("unknown catalog subcommand: {}", positional.join(" "))),
 		},
 		[first, rest @ ..] if first == "model" => match rest {
-			[sub, model_id] if sub == "inspect" => Command::ModelInspect { model_id: model_id.clone() },
-			[sub] if sub == "inspect" => {
-				return Err(
-					"model inspect requires a model id, e.g. model inspect @cf/deepseek-ai/deepseek-v4-flash-0731"
-						.to_string(),
-				);
+				[sub, model_id] if sub == "inspect" => Command::ModelInspect { model_id: model_id.clone() },
+				[sub] if sub == "inspect" => {
+					return Err(
+						"model inspect requires a model id, e.g. model inspect @cf/deepseek-ai/deepseek-v4-flash-0731"
+							.to_string(),
+					);
+				},
+				[sub, model_id] if sub == "verify" => Command::ModelVerify {
+					model_id: model_id.clone(),
+					suite: SuiteKind::parse(suite.as_deref())?,
+				},
+				[sub] if sub == "verify" => {
+					return Err(
+						"model verify requires a model id, e.g. model verify @cf/deepseek-ai/deepseek-v4-flash-0731 [--suite smoke]"
+							.to_string(),
+					);
+				},
+				[sub] if sub == "health" => Command::ModelHealth,
+				_ => return Err(format!("unknown model subcommand: {}", positional.join(" "))),
 			},
-			_ => return Err(format!("unknown model subcommand: {}", positional.join(" "))),
-		},
 		[first, rest @ ..] if first == "policy" => match rest {
 			[sub] if sub == "get" => Command::PolicyGet,
 			_ => return Err(format!("unknown policy subcommand: {}", positional.join(" "))),
 		},
 		_ => return Err(format!("unknown command: {}", positional.join(" "))),
 	};
+	// --suite is a model-verify flag; anywhere else it is a usage error.
+	if suite.is_some() && !matches!(command, Command::ModelVerify { .. }) {
+		return Err("--suite is only valid with 'model verify'".to_string());
+	}
 	Ok((command, format))
 }
 
@@ -292,6 +325,14 @@ fn execute(command: Command, out: &mut dyn Write, err: &mut dyn Write, fetch: Fe
 		},
 		Command::ModelInspect { model_id } => {
 			let (code, value) = model_inspect_json(fetch, &model_id);
+			emit_json(out, err, &value, code)
+		},
+		Command::ModelVerify { model_id, suite } => {
+			let (code, value) = model_verify_json(&model_id, suite, err);
+			emit_json(out, err, &value, code)
+		},
+		Command::ModelHealth => {
+			let (code, value) = model_health_json();
 			emit_json(out, err, &value, code)
 		},
 		Command::PolicyGet => {
@@ -973,6 +1014,161 @@ fn model_inspect_json(fetch: FetchCatalog, model_id: &str) -> (i32, serde_json::
 	let mut value = model_json(record, &policy);
 	value["source"] = serde_json::Value::String(resolved.source.to_string());
 	(EXIT_OK, value)
+}
+
+// ---------------------------------------------------------------------------
+// model verify / model health (Phase-3 conformance smoke suite, task sa-0)
+// ---------------------------------------------------------------------------
+
+/// `model verify <id> [--suite smoke]` - runs the live smoke suite
+/// (`crate::verify`) against the model id **exactly as given**: the catalog
+/// is never consulted, so a model absent from the catalog is still verified.
+///
+/// Exit contract (feedback 02):
+/// - `0` all three checks passed (the run is persisted into `model-health.json`);
+/// - `1` the live gate is closed (`AUTH_CLOUDFLARE_LIVE_TESTS` != `1`) - the
+///   gate check precedes credential resolution and any fetch;
+/// - `2` credentials missing;
+/// - `3` the live API was unreachable at send time (remote Cloudflare API
+///   failure - the run errored before completing);
+/// - `6` the suite ran to completion and at least one check failed.
+///
+/// A model-health.json persistence failure is a warning on stderr, never a
+/// verdict change (same best-effort precedent as `catalog refresh`).
+fn model_verify_json(model_id: &str, suite: SuiteKind, err: &mut dyn Write) -> (i32, serde_json::Value) {
+	let suite_name = suite.as_str();
+	let gate = if verify::live_tests_enabled() { "open" } else { "closed" };
+	// Gate first: a closed gate refuses with exit 1 without resolving
+	// credentials and without touching the network.
+	if gate == "closed" {
+		return (
+			EXIT_OPERATIONAL,
+			serde_json::json!({
+				"model_id": model_id,
+				"suite": suite_name,
+				"gate": "closed",
+				"status": "error",
+				"error": "live tests disabled (set AUTH_CLOUDFLARE_LIVE_TESTS=1 to allow paid inference)",
+				"passed": false,
+				"exit_code": EXIT_OPERATIONAL,
+			}),
+		);
+	}
+	let config = match Config::from_env() {
+		Ok(config) => config,
+		Err(error) => {
+			return (
+				EXIT_CREDENTIALS,
+				serde_json::json!({
+					"model_id": model_id,
+					"suite": suite_name,
+					"gate": "open",
+					"status": "error",
+					"error": error.to_string(),
+					"passed": false,
+					"exit_code": EXIT_CREDENTIALS,
+				}),
+			);
+		},
+	};
+	let result = match suite {
+		SuiteKind::Smoke => verify::run_smoke_suite(&config, model_id),
+	};
+	match result {
+		Ok(report) => {
+			// Persist the account-scoped health store after the run; a local
+			// write failure must not mask the conformance verdict.
+			let dir = config.cache_dir();
+			if let Err(error) = verify::save_verification(&dir, &report.verification) {
+				let _ = writeln!(err, "auth-cloudflare: warning: model-health.json persistence failed: {error}");
+			}
+			let exit = if report.passed { EXIT_OK } else { EXIT_CONFORMANCE };
+			let mut value = serde_json::to_value(&report).expect("SmokeRunReport serializes");
+			value["gate"] = serde_json::Value::String(gate.to_string());
+			value["exit_code"] = serde_json::json!(exit);
+			(exit, value)
+		},
+		Err(CloudflareError::MissingEnv { env_var, .. }) if env_var == verify::LIVE_TESTS_ENV => {
+			// Defense-in-depth: the suite itself refused a closed gate.
+			(
+				EXIT_OPERATIONAL,
+				serde_json::json!({
+					"model_id": model_id,
+					"suite": suite_name,
+					"gate": gate,
+					"status": "error",
+					"error": "live tests disabled (set AUTH_CLOUDFLARE_LIVE_TESTS=1 to allow paid inference)",
+					"passed": false,
+					"exit_code": EXIT_OPERATIONAL,
+				}),
+			)
+		},
+		Err(error) => {
+			// A send-phase transport failure means the live API was
+			// unreachable - exit 3 (remote Cloudflare API failure), not a
+			// conformance verdict.
+			(
+				EXIT_REMOTE_API,
+				serde_json::json!({
+					"model_id": model_id,
+					"suite": suite_name,
+					"gate": gate,
+					"status": "error",
+					"error": error.to_string(),
+					"passed": false,
+					"exit_code": EXIT_REMOTE_API,
+				}),
+			)
+		},
+	}
+}
+
+/// `model health` - prints the account-scoped health store
+/// (`model-health.json` under the cache dir). Exit 2 when credentials are
+/// missing; exit 0 with empty records when the store is absent; exit 1 when
+/// a present store file is corrupt.
+fn model_health_json() -> (i32, serde_json::Value) {
+	let resolved = resolve_config();
+	if resolved.account_id.is_none() || !resolved.token_configured {
+		return (
+			EXIT_CREDENTIALS,
+			serde_json::json!({
+				"status": "error",
+				"error": "credentials missing: export AUTH_CLOUDFLARE_ACCOUNT_ID and AUTH_CLOUDFLARE_API_TOKEN (or the legacy CLOUDFLARE_* aliases)",
+				"exit_code": EXIT_CREDENTIALS,
+			}),
+		);
+	}
+	let Some(cache_dir) = resolved.cache_dir else {
+		return (
+			EXIT_OPERATIONAL,
+			serde_json::json!({
+				"status": "error",
+				"error": "no account-scoped cache directory resolved",
+				"exit_code": EXIT_OPERATIONAL,
+			}),
+		);
+	};
+	match verify::load_health_store(&cache_dir) {
+		Ok(store) => (
+			EXIT_OK,
+			serde_json::json!({
+				"status": "ok",
+				"version": store.version,
+				"updated_at": store.updated_at.to_rfc3339(),
+				"records": serde_json::to_value(&store.records).expect("records serialize"),
+				"exit_code": EXIT_OK,
+			}),
+		),
+		Err(error) => (
+			EXIT_OPERATIONAL,
+			serde_json::json!({
+				"status": "error",
+				"error": error.to_string(),
+				"exit_code": EXIT_OPERATIONAL,
+			}),
+		),
+	}
 }
 
 /// `policy get` - the core's bundled policy document, serialized as-is.

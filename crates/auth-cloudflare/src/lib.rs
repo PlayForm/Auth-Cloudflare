@@ -22,6 +22,8 @@ pub mod fetch;
 pub mod health;
 pub mod policy;
 pub mod schema;
+pub mod tool_loop;
+pub mod verify;
 
 pub use auth::{AccountCredentials, AuthProvider};
 pub use cache::{cache_dir_for_account, cache_is_stale, read_catalog_cache, write_catalog_cache, CatalogCacheMeta};
@@ -33,8 +35,18 @@ pub use health::{
 	CONFORMANCE_SUITE_VERSION, FailureClass, FailureEvidence, ModelHealthRecord, ModelVerification,
 	VerificationConfidence, VerificationStatus,
 };
-pub use policy::{ModelPolicy, ModelStatus, PolicyEntry};
+pub use policy::{
+	ranking_score, ModelPolicy, ModelStatus, PolicyEntry, RankingBreakdown, REFERENCE_CONTEXT_TOKENS,
+	REFERENCE_LATENCY_MS, REFERENCE_PRICE_PER_MILLION, WEIGHT_CONTEXT, WEIGHT_DELIVERY, WEIGHT_LATENCY, WEIGHT_PRICE,
+	WEIGHT_TOOL_LOOP,
+};
 pub use schema::{VersionInfo, CATALOG_SCHEMA_VERSION, PROTOCOL_VERSION};
+pub use tool_loop::{
+	all_arguments_valid, execute_tool, find_duplicates, fixture_source, live_tests_enabled, run_tool_loop,
+	tool_schemas, validate_ordering, ToolCallObservation, ToolLoopOutcome, LIVE_TESTS_ENV, TOOL_LOOP_MAX_TURNS,
+	TOOL_LOOP_SYSTEM_PROMPT, TOOL_LOOP_USER_PROMPT,
+};
+pub use verify::{HealthStore, SmokeRunReport, SuiteKind, live_tests_enabled, LIVE_TESTS_ENV, MAX_COST_ENV};
 
 /// crate version, from Cargo.toml.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
