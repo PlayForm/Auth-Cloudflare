@@ -78,8 +78,8 @@ pub fn fetch_catalog_from_api(
 		Ok(response) => (response.status(), response),
 		Err(ureq::Error::Status(status, response)) => (status, response),
 		Err(transport) => {
-			let message = redact_token(&transport.to_string(), token.as_ref());
-			return Err(CloudflareError::Http(message));
+			let message = map_transport_error(&transport).to_string();
+			return Err(CloudflareError::Http(redact_token(&message, token.as_ref())));
 		},
 	};
 
@@ -161,6 +161,12 @@ fn rate_limit_error(retry_after: Option<&str>, body: &str) -> CloudflareError {
 		code: 429,
 		message: format!("rate limited (HTTP 429){retry_hint}{envelope_message}"),
 	}
+}
+
+/// Map a ureq transport failure to a typed [`CloudflareError::Http`] error.
+/// The message is token-scrubbed by the caller before it is ever wrapped.
+fn map_transport_error(error: &ureq::Error) -> CloudflareError {
+	CloudflareError::Http(error.to_string())
 }
 
 /// Replace the token with a redaction marker in any text that could reach an
@@ -289,10 +295,10 @@ mod tests {
 
 	#[test]
 	fn transport_failure_maps_to_http() {
-		let transport = ureq::Error::Transport(
-			std::io::Error::new(std::io::ErrorKind::ConnectionRefused, "connection refused").into(),
-		);
-		let error = CloudflareError::Http(transport.to_string());
+		// ureq exposes `From<io::Error> for Error` (a transport failure).
+		let transport: ureq::Error =
+			std::io::Error::new(std::io::ErrorKind::ConnectionRefused, "connection refused").into();
+		let error = map_transport_error(&transport);
 		assert!(matches!(error, CloudflareError::Http(_)));
 		assert!(error.to_string().contains("connection refused"));
 	}
@@ -308,19 +314,22 @@ mod tests {
 
 	#[test]
 	fn error_strings_never_carry_the_token() {
-		// Feed bodies that (defensively) contain the token; the mapping
-		// layer must not interpolate the token itself - the fetch function
-		// scrubs the body before it reaches map_response.
+		// Production order: fetch_catalog_from_api scrubs the response body
+		// with redact_token BEFORE map_response sees it. Mirror that here -
+		// even a body that (defensively) contains the token must never reach
+		// an error string.
 		let body_with_token = format!(r#"{{"success":false,"errors":[{{"code":9109,"message":"{TOKEN}"}}]}}"#);
+		let scrubbed = redact_token(&body_with_token, TOKEN);
+		assert!(!scrubbed.contains(TOKEN), "body must be scrubbed before mapping: {scrubbed}");
+		assert!(scrubbed.contains("<redacted>"));
 		let errors = [
-			map_response(401, None, &body_with_token),
-			map_response(429, None, &body_with_token),
-			map_response(200, None, "not json"),
+			map_response(401, None, &scrubbed).unwrap_err(),
+			map_response(429, None, &scrubbed).unwrap_err(),
+			map_response(200, None, "not json").unwrap_err(),
+			CloudflareError::Http(redact_token(&format!("transport failure near {TOKEN}"), TOKEN)),
 		];
 		for error in errors {
 			let rendered = error.to_string();
-			// map_response never sees the token; the assertion guards
-			// against future token interpolation in this module.
 			assert!(!rendered.contains(TOKEN), "error string leaked the token: {rendered}");
 		}
 		// The header path is the only place the token appears, and it is

@@ -108,8 +108,8 @@ fallback catalog keeps the picker alive when the network is unavailable.
 Four steps:
 
 1. **Register** - `register_provider()` adds `auth-cloudflare-workers-ai` to
-   the Hermes provider registry (aliases include `cloudflare`, `cloudflare-ai`,
-   `auth-cloudflare-ai`, and more).
+   the Hermes provider registry (aliases include `cloudflare`,
+   `cloudflare-workers-ai`, `workers-ai`, `cf-workers-ai`, and more).
 2. **Resolve** - the account ID from the environment derives every endpoint
    (`base_url`, `models_url`, `verify_url`) - one source of truth, shared by
    the Python plugin and the Rust core.

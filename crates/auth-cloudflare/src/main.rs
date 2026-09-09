@@ -1216,8 +1216,10 @@ mod tests {
 	/// Seed the account-scoped cache for the synthetic account/token env.
 	fn seed_cache(fetched_at: &str, model_ids: &[&str]) {
 		let dir = cache_dir_for_account(&AuthProvider::new(ACCOUNT));
-		let data: Vec<serde_json::Value> =
-			model_ids.iter().map(|id| serde_json::json!({ "id": id, "name": id })).collect();
+		let data: Vec<serde_json::Value> = model_ids
+			.iter()
+			.map(|id| serde_json::json!({ "id": id, "name": display_name_from_id(id) }))
+			.collect();
 		let payload = serde_json::json!({ "data": data });
 		let meta = CatalogCacheMeta {
 			schema_version: CATALOG_SCHEMA_VERSION,
