@@ -1,0 +1,88 @@
+name: Build
+
+concurrency:
+  group: Build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  security-events: write
+  pull-requests: write
+
+on:
+  push:
+    tags: ["Cloudflare/v*"]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  DO_NOT_TRACK: 1
+
+jobs:
+  build:
+    name: Build (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            os: macos-14
+          - target: x86_64-apple-darwin
+            os: macos-13
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Build dylib
+        run: cargo build --release -p cloudflare-hermes --target ${{ matrix.target }}
+
+      - name: Package
+        shell: bash
+        run: |
+          VERSION=$(grep '^version' crates/cloudflare-hermes/Cargo.toml | head -1 | awk -F'"' '{print $2}')
+          ASSET="cloudflare-hermes-${{ matrix.target }}.tar.gz"
+          STAGE=$(mktemp -d)
+          case "${{ matrix.target }}" in
+            *windows*) DYLIB="target/${{ matrix.target }}/release/cloudflare_hermes.dll" ;;
+            *darwin*) DYLIB="target/${{ matrix.target }}/release/libcloudflare_hermes.dylib" ;;
+            *) DYLIB="target/${{ matrix.target }}/release/libcloudflare_hermes.so" ;;
+          esac
+          cp "$DYLIB" "$STAGE/"
+          tar -czf "$ASSET" -C "$STAGE" .
+          echo "ASSET=$ASSET" >> "$GITHUB_ENV"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ASSET }}
+          path: ${{ env.ASSET }}
+
+  release:
+    name: Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/Cloudflare/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: assets
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: assets/*
+          generate_release_notes: true
