@@ -13,13 +13,26 @@
 
 pub mod auth;
 pub mod cache;
+pub mod capabilities;
 pub mod catalog;
 pub mod error;
+pub mod fallback_catalog;
+pub mod health;
+pub mod policy;
+pub mod schema;
 
 pub use auth::{AccountCredentials, AuthProvider};
-pub use cache::cache_dir_for_account;
+pub use cache::{cache_dir_for_account, cache_is_stale, read_catalog_cache, write_catalog_cache, CatalogCacheMeta};
+pub use capabilities::infer_from_id;
 pub use catalog::{CapabilityState, ModelRecord, ModelRole};
 pub use error::CloudflareError;
+pub use fallback_catalog::{experimental_models, fallback_models};
+pub use health::{
+	CONFORMANCE_SUITE_VERSION, FailureClass, FailureEvidence, ModelHealthRecord, ModelVerification,
+	VerificationConfidence, VerificationStatus,
+};
+pub use policy::{ModelPolicy, ModelStatus, PolicyEntry};
+pub use schema::{VersionInfo, CATALOG_SCHEMA_VERSION, PROTOCOL_VERSION};
 
 /// crate version, from Cargo.toml.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
