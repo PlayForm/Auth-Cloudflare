@@ -1,11 +1,11 @@
 [package]
-name = "cloudflare"
+name = "auth-cloudflare"
 version = "0.0.1"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "cloudflare: Cloudflare Workers AI auth provider core - account/token resolution, model catalog types, cache paths."
+description = "auth-cloudflare: Cloudflare Workers AI auth provider core - account/token resolution, model catalog types, cache paths."
 
 [lib]
 crate-type = ["cdylib", "rlib"]

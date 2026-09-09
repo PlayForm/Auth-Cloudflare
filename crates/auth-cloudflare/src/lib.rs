@@ -1,9 +1,10 @@
-//! cloudflare - Cloudflare Workers AI auth provider core.
+//! auth-cloudflare - Cloudflare Workers AI auth provider core.
 //!
 //! Account/token resolution, Workers AI endpoint construction, model catalog
 //! normalization types, and account-scoped cache path helpers. The Hermes
-//! integration crate (`cloudflare-hermes`) and the Python plugin both build on
-//! this crate so the endpoint/auth logic has exactly one source of truth.
+//! integration crate (`auth-hermes-cloudflare`) and the Python plugin both
+//! build on this crate so the endpoint/auth logic has exactly one source of
+//! truth.
 
 pub mod auth;
 pub mod catalog;

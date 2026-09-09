@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/cloudflare", "crates/cloudflare-hermes"]
+members = ["crates/auth-cloudflare", "crates/auth-hermes-cloudflare"]
 
 [workspace.package]
 edition = "2021"

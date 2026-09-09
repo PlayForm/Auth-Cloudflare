@@ -1,5 +1,5 @@
-[submodule "plugins/cloudflare"]
-path = plugins/cloudflare
+[submodule "plugins/auth-hermes-cloudflare"]
+path = plugins/auth-hermes-cloudflare
 url = https://github.com/PlayForm/Hermes-Cloudflare.git
 ignore = dirty
 branch = Current
