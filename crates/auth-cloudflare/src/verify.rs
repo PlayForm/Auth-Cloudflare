@@ -66,6 +66,7 @@ use crate::health::{
 	CONFORMANCE_SUITE_VERSION, FailureClass, FailureEvidence, ModelVerification, VerificationConfidence,
 	VerificationStatus,
 };
+use crate::tool_loop::ToolLoopOutcome;
 
 /// Env var gating live inference: the suite runs only when this is exactly
 /// `"1"` (feedback 02: paid runs are opt-in).
@@ -126,13 +127,17 @@ pub const TOOL_CHECK_TIMEOUT: Duration = Duration::from_secs(60);
 /// is set; the budget itself is documented, never enforced.
 pub const SMOKE_SUITE_ESTIMATED_COST_USD: f64 = 0.001;
 
-/// The suites this runner knows. Only `smoke` exists in Phase 3; the CLI
-/// rejects anything else as a usage error.
+/// The suites this runner knows. `smoke` and `tool-loop` exist in Phase 3;
+/// the CLI rejects anything else as a usage error.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SuiteKind {
 	/// Cheap live smoke suite: exact text completion, streaming completion,
 	/// one tool call.
 	Smoke,
+	/// Multi-turn fake-tool conformance loop (feedback 02 suite 40): the
+	/// model must read a fixture, run its test, write the patch, and deliver
+	/// a final answer within the turn budget.
+	ToolLoop,
 }
 
 impl SuiteKind {
@@ -140,14 +145,16 @@ impl SuiteKind {
 	pub fn parse(value: Option<&str>) -> Result<Self, String> {
 		match value {
 			None | Some("smoke") => Ok(Self::Smoke),
-			Some(other) => Err(format!("unsupported suite {other}: only 'smoke' is available")),
+			Some("tool-loop") => Ok(Self::ToolLoop),
+			Some(other) => Err(format!("unsupported suite {other}: only 'smoke' and 'tool-loop' are available")),
 		}
 	}
 
-	/// The suite's machine-readable name (`"smoke"`).
+	/// The suite's machine-readable name (`"smoke"` / `"tool-loop"`).
 	pub fn as_str(self) -> &'static str {
 		match self {
 			Self::Smoke => "smoke",
+			Self::ToolLoop => "tool-loop",
 		}
 	}
 }
@@ -923,6 +930,51 @@ pub fn aggregate_verification(
 /// 1.0 for a passed check, 0.0 for a failed one (each check is one run).
 fn rate_of(passed: bool) -> f64 {
 	if passed { 1.0 } else { 0.0 }
+}
+
+/// Aggregate one tool-loop outcome into a [`ModelVerification`] (feedback 02
+/// suite 40). The loop counts as one run: `total_runs` = 1,
+/// `multi_turn_tool_success_rate` is 1.0 when the loop converged, 0.0
+/// otherwise; a non-converged loop is `Failing` with `tool_loop_failures` =
+/// 1 and the loop's own [`FailureClass`] as sanitized evidence (no HTTP
+/// status, no excerpt - the loop carries no response body).
+pub fn verification_from_tool_loop(model_id: &str, outcome: &ToolLoopOutcome) -> ModelVerification {
+	let converged = outcome.converged;
+	let status = if converged {
+		VerificationStatus::Passing
+	} else {
+		VerificationStatus::Failing
+	};
+	let last_failure = outcome
+		.failure_class
+		.map(|class| FailureEvidence::new(class, None, None, None, model_id, None, None));
+	ModelVerification {
+		model_id: model_id.to_string(),
+		latest_run_at: Some(Utc::now()),
+		expires_at: None,
+		suite_version: CONFORMANCE_SUITE_VERSION.to_string(),
+		runner_version: env!("CARGO_PKG_VERSION").to_string(),
+		status,
+		agent_eligible: true,
+		confidence: VerificationConfidence::SmokeTested,
+		total_runs: 1,
+		successful_runs: if converged { 1 } else { 0 },
+		text_completion_success_rate: None,
+		stream_completion_success_rate: None,
+		single_tool_success_rate: None,
+		multi_turn_tool_success_rate: Some(if converged { 1.0 } else { 0.0 }),
+		structured_output_success_rate: None,
+		median_latency_ms: None,
+		p95_latency_ms: None,
+		total_failures: if converged { 0 } else { 1 },
+		timeout_failures: 0,
+		transport_failures: 0,
+		provider_5xx_failures: 0,
+		malformed_response_failures: 0,
+		malformed_tool_call_failures: 0,
+		tool_loop_failures: if converged { 0 } else { 1 },
+		last_failure,
+	}
 }
 
 /// Map failed-check evidence classes onto the five counter buckets.

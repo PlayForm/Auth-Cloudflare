@@ -12,7 +12,7 @@
 //! auth-cloudflare catalog export yaml|markdown
 //! auth-cloudflare catalog diff [--format json]
 //! auth-cloudflare model inspect <model-id> [--format json]
-//! auth-cloudflare model verify <model-id> [--suite smoke] [--format json]
+//! auth-cloudflare model verify <model-id> [--suite smoke|tool-loop] [--recommended] [--format json]
 //! auth-cloudflare model health [--format json]
 //! auth-cloudflare policy get [--format json]
 //! ```
@@ -87,6 +87,9 @@ const EXIT_UNSAFE_CONFIG: i32 = 7;
 /// (and exits 4 - stale cache successfully used, feedback 02).
 const CACHE_MAX_AGE: Duration = Duration::from_secs(6 * 3600);
 
+/// Per-request budget for one live tool-loop run (ureq agent timeout).
+const TOOL_LOOP_TIMEOUT: Duration = Duration::from_secs(90);
+
 /// Canonical env vars (config.rs contract, feedback 03/06).
 const ACCOUNT_ID_ENV: &str = "AUTH_CLOUDFLARE_ACCOUNT_ID";
 const API_TOKEN_ENV: &str = "AUTH_CLOUDFLARE_API_TOKEN";
@@ -154,7 +157,7 @@ enum Command {
 	CatalogExport { format: ExportFormat },
 	CatalogDiff,
 	ModelInspect { model_id: String },
-	ModelVerify { model_id: String, suite: SuiteKind },
+	ModelVerify { model_id: String, suite: SuiteKind, recommended: bool },
 	ModelHealth,
 	PolicyGet,
 	Help,
@@ -205,12 +208,14 @@ fn run_with_fetch(args: &[String], out: &mut dyn Write, err: &mut dyn Write, fet
 	execute(command, out, err, fetch)
 }
 
-/// Parse args into a command. `--format <value>` / `--format=<value>` and
-/// `--suite <value>` / `--suite=<value>` may appear anywhere; everything else
-/// is positional. Returns a usage error message on malformed/unknown input.
+/// Parse args into a command. `--format <value>` / `--format=<value>`,
+/// `--suite <value>` / `--suite=<value>` and `--recommended` may appear
+/// anywhere; everything else is positional. Returns a usage error message on
+/// malformed/unknown input.
 fn parse_args(args: &[String]) -> Result<(Command, Option<String>), String> {
 	let mut format: Option<String> = None;
 	let mut suite: Option<String> = None;
+	let mut recommended = false;
 	let mut positional: Vec<String> = Vec::new();
 	let mut iter = args.iter();
 	while let Some(arg) = iter.next() {
@@ -228,6 +233,8 @@ fn parse_args(args: &[String]) -> Result<(Command, Option<String>), String> {
 			suite = Some(value.clone());
 		} else if let Some(value) = arg.strip_prefix("--suite=") {
 			suite = Some(value.to_string());
+		} else if arg == "--recommended" {
+			recommended = true;
 		} else {
 			positional.push(arg.clone());
 		}
@@ -257,12 +264,19 @@ fn parse_args(args: &[String]) -> Result<(Command, Option<String>), String> {
 						.to_string(),
 				);
 			},
-			[sub, model_id] if sub == "verify" => {
-				Command::ModelVerify { model_id: model_id.clone(), suite: SuiteKind::parse(suite.as_deref())? }
+			[sub, model_id] if sub == "verify" => Command::ModelVerify {
+				model_id: model_id.clone(),
+				suite: SuiteKind::parse(suite.as_deref())?,
+				recommended,
+			},
+			[sub] if sub == "verify" && recommended => Command::ModelVerify {
+				model_id: DEFAULT_MODEL.to_string(),
+				suite: SuiteKind::parse(suite.as_deref())?,
+				recommended,
 			},
 			[sub] if sub == "verify" => {
 				return Err(
-						"model verify requires a model id, e.g. model verify @cf/deepseek-ai/deepseek-v4-flash-0731 [--suite smoke]"
+						"model verify requires a model id (or --recommended), e.g. model verify @cf/deepseek-ai/deepseek-v4-flash-0731 [--suite smoke]"
 							.to_string(),
 					);
 			},
@@ -275,9 +289,13 @@ fn parse_args(args: &[String]) -> Result<(Command, Option<String>), String> {
 		},
 		_ => return Err(format!("unknown command: {}", positional.join(" "))),
 	};
-	// --suite is a model-verify flag; anywhere else it is a usage error.
+	// --suite / --recommended are model-verify flags; anywhere else they are
+	// a usage error.
 	if suite.is_some() && !matches!(command, Command::ModelVerify { .. }) {
 		return Err("--suite is only valid with 'model verify'".to_string());
+	}
+	if recommended && !matches!(command, Command::ModelVerify { .. }) {
+		return Err("--recommended is only valid with 'model verify'".to_string());
 	}
 	Ok((command, format))
 }
@@ -326,8 +344,8 @@ fn execute(command: Command, out: &mut dyn Write, err: &mut dyn Write, fetch: Fe
 			let (code, value) = model_inspect_json(fetch, &model_id);
 			emit_json(out, err, &value, code)
 		},
-		Command::ModelVerify { model_id, suite } => {
-			let (code, value) = model_verify_json(&model_id, suite, err);
+		Command::ModelVerify { model_id, suite, recommended } => {
+			let (code, value) = model_verify_json(&model_id, suite, recommended, err);
 			emit_json(out, err, &value, code)
 		},
 		Command::ModelHealth => {
@@ -1019,9 +1037,19 @@ fn model_inspect_json(fetch: FetchCatalog, model_id: &str) -> (i32, serde_json::
 // model verify / model health (Phase-3 conformance smoke suite, task sa-0)
 // ---------------------------------------------------------------------------
 
-/// `model verify <id> [--suite smoke]` - runs the live smoke suite
-/// (`crate::verify`) against the model id **exactly as given**: the catalog
-/// is never consulted, so a model absent from the catalog is still verified.
+/// One completed conformance run, type-erased across suites so the CLI
+/// dispatcher can share the gate/credential/error plumbing while keeping
+/// each suite's own report shape.
+enum RunOutcome {
+	Smoke(verify::SmokeRunReport),
+	ToolLoop(Box<auth_cloudflare::tool_loop::ToolLoopOutcome>),
+}
+
+/// `model verify <id> [--suite smoke|tool-loop] [--recommended]` - runs a
+/// live conformance suite (`crate::verify` / `crate::tool_loop`) against the
+/// model id **exactly as given**: the catalog is never consulted, so a model
+/// absent from the catalog is still verified. `--recommended` substitutes
+/// [`DEFAULT_MODEL`].
 ///
 /// Exit contract (feedback 02):
 /// - `0` all three checks passed (the run is persisted into `model-health.json`);
@@ -1034,7 +1062,13 @@ fn model_inspect_json(fetch: FetchCatalog, model_id: &str) -> (i32, serde_json::
 ///
 /// A model-health.json persistence failure is a warning on stderr, never a
 /// verdict change (same best-effort precedent as `catalog refresh`).
-fn model_verify_json(model_id: &str, suite: SuiteKind, err: &mut dyn Write) -> (i32, serde_json::Value) {
+fn model_verify_json(
+	model_id: &str,
+	suite: SuiteKind,
+	recommended: bool,
+	err: &mut dyn Write,
+) -> (i32, serde_json::Value) {
+	let model_id = if recommended { DEFAULT_MODEL } else { model_id };
 	let suite_name = suite.as_str();
 	let gate = if verify::live_tests_enabled() { "open" } else { "closed" };
 	// Gate first: a closed gate refuses with exit 1 without resolving
@@ -1070,11 +1104,38 @@ fn model_verify_json(model_id: &str, suite: SuiteKind, err: &mut dyn Write) -> (
 			);
 		},
 	};
-	let result = match suite {
-		SuiteKind::Smoke => verify::run_smoke_suite(&config, model_id),
+	let result: Result<RunOutcome, CloudflareError> = match suite {
+		SuiteKind::Smoke => verify::run_smoke_suite(&config, model_id).map(RunOutcome::Smoke),
+		SuiteKind::ToolLoop => {
+			let base_url = match config.base_url() {
+				Ok(url) => url,
+				Err(error) => {
+					return (
+						EXIT_CREDENTIALS,
+						serde_json::json!({
+							"model_id": model_id,
+							"suite": suite_name,
+							"gate": gate,
+							"status": "error",
+							"error": error.to_string(),
+							"passed": false,
+							"exit_code": EXIT_CREDENTIALS,
+						}),
+					);
+				},
+			};
+			auth_cloudflare::tool_loop::run_tool_loop(
+				config.account_id(),
+				config.api_token(),
+				&base_url,
+				model_id,
+				TOOL_LOOP_TIMEOUT,
+			)
+			.map(|outcome| RunOutcome::ToolLoop(Box::new(outcome)))
+		},
 	};
 	match result {
-		Ok(report) => {
+		Ok(RunOutcome::Smoke(report)) => {
 			// Persist the account-scoped health store after the run; a local
 			// write failure must not mask the conformance verdict.
 			let dir = config.cache_dir();
@@ -1083,6 +1144,21 @@ fn model_verify_json(model_id: &str, suite: SuiteKind, err: &mut dyn Write) -> (
 			}
 			let exit = if report.passed { EXIT_OK } else { EXIT_CONFORMANCE };
 			let mut value = serde_json::to_value(&report).expect("SmokeRunReport serializes");
+			value["gate"] = serde_json::Value::String(gate.to_string());
+			value["exit_code"] = serde_json::json!(exit);
+			(exit, value)
+		},
+		Ok(RunOutcome::ToolLoop(report)) => {
+			// The tool-loop verification carries multi_turn_tool_success_rate
+			// for the picker; persist it alongside the smoke records.
+			let verification = verify::verification_from_tool_loop(model_id, &report);
+			let dir = config.cache_dir();
+			if let Err(error) = verify::save_verification(&dir, &verification) {
+				let _ = writeln!(err, "auth-cloudflare: warning: model-health.json persistence failed: {error}");
+			}
+			let exit = if report.converged { EXIT_OK } else { EXIT_CONFORMANCE };
+			let mut value = serde_json::to_value(&report).expect("ToolLoopOutcome serializes");
+			value["verification"] = serde_json::to_value(&verification).expect("verification serializes");
 			value["gate"] = serde_json::Value::String(gate.to_string());
 			value["exit_code"] = serde_json::json!(exit);
 			(exit, value)
@@ -2057,15 +2133,51 @@ mod tests {
 		let cases: &[(&[&str], Command)] = &[
 			(
 				&["model", "verify", DEFAULT_MODEL],
-				Command::ModelVerify { model_id: DEFAULT_MODEL.to_string(), suite: SuiteKind::Smoke },
+				Command::ModelVerify {
+					model_id: DEFAULT_MODEL.to_string(),
+					suite: SuiteKind::Smoke,
+					recommended: false,
+				},
 			),
 			(
 				&["model", "verify", DEFAULT_MODEL, "--suite", "smoke"],
-				Command::ModelVerify { model_id: DEFAULT_MODEL.to_string(), suite: SuiteKind::Smoke },
+				Command::ModelVerify {
+					model_id: DEFAULT_MODEL.to_string(),
+					suite: SuiteKind::Smoke,
+					recommended: false,
+				},
 			),
 			(
 				&["model", "verify", DEFAULT_MODEL, "--suite=smoke", "--format", "json"],
-				Command::ModelVerify { model_id: DEFAULT_MODEL.to_string(), suite: SuiteKind::Smoke },
+				Command::ModelVerify {
+					model_id: DEFAULT_MODEL.to_string(),
+					suite: SuiteKind::Smoke,
+					recommended: false,
+				},
+			),
+			(
+				&["model", "verify", DEFAULT_MODEL, "--suite", "tool-loop"],
+				Command::ModelVerify {
+					model_id: DEFAULT_MODEL.to_string(),
+					suite: SuiteKind::ToolLoop,
+					recommended: false,
+				},
+			),
+			(
+				&["model", "verify", "--recommended", "--suite", "tool-loop"],
+				Command::ModelVerify {
+					model_id: DEFAULT_MODEL.to_string(),
+					suite: SuiteKind::ToolLoop,
+					recommended: true,
+				},
+			),
+			(
+				&["model", "verify", "--recommended"],
+				Command::ModelVerify {
+					model_id: DEFAULT_MODEL.to_string(),
+					suite: SuiteKind::Smoke,
+					recommended: true,
+				},
 			),
 			(&["model", "health", "--format", "json"], Command::ModelHealth),
 		];
@@ -2084,13 +2196,23 @@ mod tests {
 			"verify".to_string(),
 			DEFAULT_MODEL.to_string(),
 			"--suite".to_string(),
-			"tool-loop".to_string(),
+			"bogus".to_string(),
 		];
 		assert!(parse_args(&owned).is_err(), "unknown suite must fail parsing");
 		let owned = vec!["version".to_string(), "--suite".to_string(), "smoke".to_string()];
 		assert!(parse_args(&owned).is_err(), "--suite outside model verify must fail parsing");
 		let owned = vec!["model".to_string(), "verify".to_string(), "--suite".to_string()];
 		assert!(parse_args(&owned).is_err(), "--suite without a value must fail parsing");
+		let owned = vec!["version".to_string(), "--recommended".to_string()];
+		assert!(
+			parse_args(&owned).is_err(),
+			"--recommended outside model verify must fail parsing"
+		);
+		let owned = vec!["model".to_string(), "verify".to_string()];
+		assert!(
+			parse_args(&owned).is_err(),
+			"model verify without id or --recommended must fail parsing"
+		);
 	}
 
 	#[test]
