@@ -28,7 +28,7 @@ metadata:
 2. **BINARY_VERSION** - update `plugins/cloudflare/BINARY_VERSION` with the
    plain version (`0.1.0`, no `v`, no tag prefix). `download.sh` reads this
    first; the GitHub-API fallback parses `Cloudflare/v<tag>`.
-3. **Changelog** - add a `.hermes/release-notes/<version>.md` entry.
+3. **Changelog** - add a `.playform/release-notes/<version>.md` entry.
 4. **Tag + push**:
    ```sh
    git tag Cloudflare/v0.1.0
