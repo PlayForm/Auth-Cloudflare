@@ -70,6 +70,27 @@ curl -sS "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/a
 	-d '{"model":"@cf/zai-org/glm-5.3-flash","messages":[{"role":"user","content":"Say OK"}]}'
 ```
 
+## Local dev with the installed binary
+
+- Install the debug build to `~/.hermes/bin/auth-cloudflare` (canonical locator
+  path, checked before plugin `bin/`): `cp target/debug/auth-cloudflare
+  ~/.hermes/bin/ && chmod +x` - reinstall after every `cargo build` so doctor/
+  verify commands carry new features.
+- Once the binary exists, `cloudflare_doctor`/`fetch_models` go binary-first:
+  the python direct-HTTP fallback is only used when the locator returns None.
+  Plugin tests that instrument the fallback (test_catalog.py,
+  test_token_redaction.py) MUST mock `plugin.locate_auth_cloudflare_binary`
+  → None in setUp, or they break with KeyError on the captured request.
+- `_run_binary_json` relays the binary's diagnostic JSON on non-zero exit
+  (sets `exit_code`); a missing account id surfaces as `account_id:
+  configured:false` + `exit_code: 2`, never a bare "exited with code 2".
+- Plain `hermes` (default profile) has no account env → binary doctor exits 2
+  by contract; use the dev-cloudflare profile wrapper or export
+  AUTH_CLOUDFLARE_ACCOUNT_ID.
+- The `hermes model` picker list is 100% plugin-generated per opening
+  (binary `catalog get` → policy-ordered); disabling the plugin removes the
+  provider and every model row.
+
 ## Recommended routing
 
 ```text

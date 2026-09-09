@@ -84,10 +84,10 @@ pub fn read_catalog_cache(
 
 /// Write the versioned catalog cache for an account-scoped directory.
 ///
-/// Creates `dir` if needed and writes both files atomically (sibling `.tmp`
-/// + rename, `0o600`). The payload is written first; the meta file is the
-/// commit point - a concurrent or crashed reader never sees meta without a
-/// fully written payload.
+/// Creates `dir` if needed and writes both files atomically (a sibling
+/// `.tmp` file renamed into place, mode `0o600`). The payload is written
+/// first; the meta file is the commit point, so a concurrent or crashed
+/// reader never sees metadata without a fully written payload.
 pub fn write_catalog_cache(
 	dir: &Path,
 	meta: &CatalogCacheMeta,

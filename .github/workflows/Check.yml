@@ -33,11 +33,11 @@ jobs:
         run: cargo fmt --all --check
 
       - name: Clippy
-        # No `-D warnings`: the workspace currently ships 9 pre-existing clippy
-        # warnings (catalog.rs / cache.rs lint and doc nits, crates/ is out of
-        # scope for this task). Flip to `cargo clippy --workspace --all-targets
-        # -- -D warnings` once those are cleared (tracked follow-up).
-        run: cargo clippy --workspace --all-targets
+        # Strict gate: all previously deferred warnings (catalog.rs field
+        # reassign / manual contains, cache.rs doc-list nits, main.rs
+        # Iterator::last / large enum variant) are fixed; -D warnings is
+        # binding from here on.
+        run: cargo clippy --workspace --all-targets -- -D warnings
 
       - name: Test
         run: cargo test --workspace

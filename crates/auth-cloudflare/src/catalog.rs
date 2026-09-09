@@ -284,13 +284,15 @@ impl ModelRecord {
 			ModelRole::CodingAgent
 		};
 
-		let mut capabilities = ModelCapabilities::default();
-		capabilities.tools = if role == ModelRole::Safety {
-			CapabilityState::Unsupported
-		} else if TOOL_CAPABLE_MARKERS.iter().any(|m| lower.contains(m)) {
-			CapabilityState::Confirmed
-		} else {
-			CapabilityState::Unknown
+		let capabilities = ModelCapabilities {
+			tools: if role == ModelRole::Safety {
+				CapabilityState::Unsupported
+			} else if TOOL_CAPABLE_MARKERS.iter().any(|m| lower.contains(m)) {
+				CapabilityState::Confirmed
+			} else {
+				CapabilityState::Unknown
+			},
+			..ModelCapabilities::default()
 		};
 
 		let pricing = item.get("pricing").and_then(PricingPerMillion::parse);
@@ -303,7 +305,7 @@ impl ModelRecord {
 
 		let role_based_visibility = if SAFETY_MARKERS.iter().any(|m| lower.contains(m)) {
 			Visibility::Hidden
-		} else if EXPERIMENTAL_MODELS.iter().any(|m| *m == id.as_str()) {
+		} else if EXPERIMENTAL_MODELS.contains(&id.as_str()) {
 			Visibility::Experimental
 		} else if FALLBACK_MODELS.first().is_some_and(|m| *m == id.as_str()) {
 			Visibility::Recommended

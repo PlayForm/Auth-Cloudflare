@@ -709,7 +709,7 @@ fn fallback_records() -> Vec<ModelRecord> {
 /// → `DeepSeek V4 Flash 0731`). Pure display heuristics - never policy.
 fn display_name_from_id(id: &str) -> String {
 	let rest = id.strip_prefix("@cf/").unwrap_or(id);
-	let model = rest.split('/').last().unwrap_or(rest);
+	let model = rest.split('/').next_back().unwrap_or(rest);
 	let mut out = String::new();
 	let mut capitalize_next = true;
 	let mut previous_was_digit = false;
@@ -1041,7 +1041,7 @@ fn model_inspect_json(fetch: FetchCatalog, model_id: &str) -> (i32, serde_json::
 /// dispatcher can share the gate/credential/error plumbing while keeping
 /// each suite's own report shape.
 enum RunOutcome {
-	Smoke(verify::SmokeRunReport),
+	Smoke(Box<verify::SmokeRunReport>),
 	ToolLoop(Box<auth_cloudflare::tool_loop::ToolLoopOutcome>),
 }
 
@@ -1105,7 +1105,9 @@ fn model_verify_json(
 		},
 	};
 	let result: Result<RunOutcome, CloudflareError> = match suite {
-		SuiteKind::Smoke => verify::run_smoke_suite(&config, model_id).map(RunOutcome::Smoke),
+		SuiteKind::Smoke => {
+			verify::run_smoke_suite(&config, model_id).map(|report| RunOutcome::Smoke(Box::new(report)))
+		},
 		SuiteKind::ToolLoop => {
 			let base_url = match config.base_url() {
 				Ok(url) => url,
