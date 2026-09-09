@@ -1,0 +1,25 @@
+{
+  "name": "@playform/cloudflare",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Cloudflare Workers AI authentication provider plugin for Hermes Agent",
+  "license": "CC0-1.0",
+  "repository": "PlayForm/Cloudflare",
+  "scripts": {
+    "Format": "sh Maintain/Format.sh",
+    "Format:LineEndings": "sh Maintain/Format.sh dos2unix",
+    "Format:Shell": "sh Maintain/Format.sh shell",
+    "Format:Prettier": "sh Maintain/Format.sh prettier",
+    "Format:Rust": "sh Maintain/Format.sh rust",
+    "FormatCheck": "prettier --check .",
+    "prepare": "git config core.hooksPath .githooks && sh .githooks/lib/sync-submodules.sh"
+  },
+  "devDependencies": {
+    "prettier": "3.9.6"
+  },
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  },
+  "packageManager": "pnpm@11.18.0"
+}

@@ -1,1 +1,65 @@
+# Rust
+/target/
+**/*.rs.bk
+*.pdb
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.venv/
+venv/
+env/
+
+*.log
+*.lock
+*.tar.gz
+
+# Profiles - keep local, ship only examples.
+profiles/*
+!profiles/example/
+!profiles/example/**
+
+# IDE
+.idea/
+.vscode/
+!.vscode/settings.json
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# JS / pnpm
+node_modules/
+pnpm-lock.yaml
+
+# Secrets (never commit)
+.env
 .env.sh
+*.pem
+*.key
+id_rsa*
+
+# Catch-all leaks
+**/state.db*
+**/auth.json
+**/auth.lock
+**/.hermes_*
+**/.skills_*
+**/.update_check
+**/__pycache__/
+**/.DS_Sccp_*.txt
+.cargo_check_output.txt
+
+placeholder/
+.plans
+.bench

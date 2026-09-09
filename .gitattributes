@@ -1,0 +1,18 @@
+# Line endings
+* text=auto
+*.rs text eol=lf
+*.py text eol=lf
+*.toml text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.md text eol=lf
+*.sh text eol=lf
+
+# Binary
+*.png binary
+*.jpg binary
+*.ico binary
+
+# Export ignore (don't include in archive downloads)
+.hermes/ export-ignore
+.github/ export-ignore

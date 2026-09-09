@@ -1,0 +1,6 @@
+[submodule "plugins/cloudflare"]
+path = plugins/cloudflare
+url = https://github.com/PlayForm/Hermes-Cloudflare.git
+ignore = dirty
+branch = Current
+remote = Source

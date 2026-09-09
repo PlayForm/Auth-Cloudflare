@@ -1,0 +1,19 @@
+[workspace]
+resolver = "2"
+members = ["crates/cloudflare", "crates/cloudflare-hermes"]
+
+[workspace.package]
+edition = "2021"
+rust-version = "1.88"
+license = "CC0-1.0"
+repository = "https://github.com/PlayForm/Cloudflare"
+
+[workspace.dependencies]
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = { version = "1.0.150", features = [
+	"preserve_order",
+	"arbitrary_precision",
+	"raw_value",
+] }
+thiserror = "2.0.18"
+tracing = "0.1.44"
