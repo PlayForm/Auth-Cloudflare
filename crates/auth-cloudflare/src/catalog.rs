@@ -303,9 +303,9 @@ impl ModelRecord {
 
 		let role_based_visibility = if SAFETY_MARKERS.iter().any(|m| lower.contains(m)) {
 			Visibility::Hidden
-		} else if EXPERIMENTAL_MODELS.iter().any(|m| *m == id) {
+		} else if EXPERIMENTAL_MODELS.iter().any(|m| *m == id.as_str()) {
 			Visibility::Experimental
-		} else if FALLBACK_MODELS.first() == Some(&id.as_str()) {
+		} else if FALLBACK_MODELS.first().is_some_and(|m| *m == id.as_str()) {
 			Visibility::Recommended
 		} else {
 			Visibility::Available
@@ -314,7 +314,7 @@ impl ModelRecord {
 		Some(Self {
 			display_name: item.get("name").and_then(|n| n.as_str()).unwrap_or(&id).to_string(),
 			publisher,
-			id,
+			id: id.clone(),
 			role,
 			availability: if id.starts_with("@cf/") {
 				Availability::CloudflareHosted
@@ -371,7 +371,7 @@ impl ModelRecord {
 		let day = doy - (153 * mp + 2) / 5 + 1;
 		let month = if mp < 10 { mp + 3 } else { mp - 9 };
 		let year = if month <= 2 { year + 1 } else { year };
-		NaiveDate::from_ymd_opt(year, month as i32, day as i32)
+		NaiveDate::from_ymd_opt(year as i32, month as u32, day as u32)
 	}
 }
 
@@ -489,7 +489,7 @@ mod tests {
 		let models = picker_models_from_openrouter(&payload);
 		assert_eq!(
 			models,
-			vec!["@cf/third-party/gemini-3.8-flash", "@cf/deepseek-ai/deepseek-v4-flash-0731"]
+			vec!["@cf/deepseek-ai/deepseek-v4-flash-0731", "@cf/third-party/gemini-3.8-flash"]
 		);
 	}
 
