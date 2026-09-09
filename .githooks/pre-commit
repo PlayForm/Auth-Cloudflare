@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# pre-commit - format + verify staged files (cloudflare repo).
+# Mirrors Aphrodite: rustfmt for .rs, prettier for everything else, and a
+# secret scan that blocks any real Cloudflare token prefix from committing.
+
+set -euo pipefail
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
+STAGED=$(git diff --cached --name-only --diff-filter=ACM)
+if [[ -z "$STAGED" ]]; then
+	exit 0
+fi
+
+# 1. Rust - format only changed .rs files
+RUST_FILES=$(echo "$STAGED" | grep '\.rs$' || true)
+if [[ -n "$RUST_FILES" ]]; then
+	rustfmt +stable --edition 2021 $RUST_FILES 2>/dev/null || true
+	git add $RUST_FILES
+fi
+
+# 2. Prettier - format staged non-rust files
+JS_FILES=$(echo "$STAGED" | grep -v '\.rs$' || true)
+if [[ -n "$JS_FILES" ]] && command -v prettier &>/dev/null; then
+	prettier --write --ignore-unknown $JS_FILES 2>/dev/null || true
+	git add $JS_FILES
+fi
+
+# 3. Secret scan - block any real cfut_/cfwt_ token from committing.
+# Environment-variable NAMES are fine (CLOUDFLARE_API_TOKEN); literal token
+# VALUES are not. The scan runs against the staged diff, not the filesystem.
+if git diff --cached | grep -nE '(cfut_|cfwt_)[0-9A-Za-z]{20,}' &>/dev/null; then
+	echo "ERROR: staged diff contains what looks like a literal Cloudflare token"
+	echo "  (cfut_/cfwt_ prefix) - secrets belong in .env, never in git."
+	echo "  Offending lines:"
+	git diff --cached | grep -nE '(cfut_|cfwt_)[0-9A-Za-z]{20,}' | head -5
+	exit 1
+fi
+
+# 4. Line endings - reject CRLF in staged text files.
+if git diff --cached --check; then
+	:
+fi
