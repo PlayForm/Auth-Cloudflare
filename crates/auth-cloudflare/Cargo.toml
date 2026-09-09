@@ -11,6 +11,10 @@ description = "auth-cloudflare: Cloudflare Workers AI auth provider core - accou
 crate-type = ["cdylib", "rlib"]
 path = "src/lib.rs"
 
+[[bin]]
+name = "auth-cloudflare"
+path = "src/main.rs"
+
 [dependencies]
 chrono = { workspace = true }
 serde = { workspace = true }
