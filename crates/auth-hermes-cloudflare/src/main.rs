@@ -71,7 +71,7 @@ fn locate_binary() -> Option<PathBuf> {
 			return Some(candidate);
 		}
 	}
-	if let Ok(found) = which(BINARY_NAME) {
+	if let Some(found) = which(BINARY_NAME) {
 		return Some(found);
 	}
 	for dir in plugin_dirs() {
@@ -190,21 +190,18 @@ fn cmd_unlink(out: &mut dyn std::io::Write) -> i32 {
 fn main() {
 	let args: Vec<String> = std::env::args().skip(1).collect();
 	let code = match args.as_slice() {
-		[] | [cmd] if cmd == "status" || cmd.is_empty() => cmd_status(&mut std::io::stdout()),
+		[] => cmd_status(&mut std::io::stdout()),
+		[cmd] if cmd == "status" => cmd_status(&mut std::io::stdout()),
 		[cmd] if cmd == "install" || cmd == "upgrade" => cmd_install(&mut std::io::stdout()),
 		[cmd] if cmd == "unlink" => cmd_unlink(&mut std::io::stdout()),
 		[cmd] if cmd == "--help" || cmd == "-h" || cmd == "help" => {
-			let _ = writeln!(
-				std::io::stdout(),
+			println!(
 				"auth-hermes-cloudflare - plugin/binary utility\n\nUsage:\n  auth-hermes-cloudflare status    JSON plugin + binary state\n  auth-hermes-cloudflare install   run download.sh (plugin dir)\n  auth-hermes-cloudflare upgrade   alias of install\n  auth-hermes-cloudflare unlink    remove ~/.hermes/bin/auth-cloudflare"
 			);
 			0
 		},
 		[other, ..] => {
-			let _ = writeln!(
-				std::io::stderr(),
-				"auth-hermes-cloudflare: unknown command {other:?} (try status)"
-			);
+			eprintln!("auth-hermes-cloudflare: unknown command {other:?} (try status)");
 			1
 		},
 	};
