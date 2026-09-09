@@ -34,37 +34,22 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-// The core crate's lib.rs does not declare `pub mod config`, so config.rs
-// (and the auth/cache/error modules it depends on) is not reachable through
-// the library. The CLI includes the core's own sources as private modules
-// via #[path] - the exact same code, no duplication, no lib.rs edits. Types
-// from these local modules are distinct from the library's copies, so the
-// CLI consistently uses the local ones for credential/cache resolution.
-// Only a subset of the core API is exercised by the CLI, so the unused rest
-// is allowed here (the library's own copies serve the full API).
-#[path = "auth.rs"]
-#[allow(dead_code)]
-mod auth;
-#[path = "cache.rs"]
-#[allow(dead_code)]
-mod cache;
-#[path = "error.rs"]
-#[allow(dead_code)]
-mod error;
-#[path = "config.rs"]
-#[allow(dead_code)]
-mod config;
-
-use crate::auth::AuthProvider;
-use crate::cache::{cache_is_stale, read_catalog_cache, CatalogCacheMeta};
-use crate::config::{Config, ConfigBuilder, BASE_URL_ENV, CONFIG_ENV};
+use auth_cloudflare::auth::{AuthProvider, ACCOUNT_ENV, TOKEN_ENV};
+use auth_cloudflare::cache::{cache_dir_for_account, cache_is_stale, read_catalog_cache, CatalogCacheMeta};
 use auth_cloudflare::catalog::{ModelRecord, FALLBACK_MODELS};
 use auth_cloudflare::policy::ModelPolicy;
-// Re-export the library's schema module at the bin crate root so the
-// included core sources (`crate::schema::…` in cache.rs tests) resolve.
-use auth_cloudflare::schema;
 use auth_cloudflare::schema::{VersionInfo, CATALOG_SCHEMA_VERSION};
 use auth_cloudflare::{DEFAULT_MODEL, VERSION};
+
+// Credential resolution: the core crate's lib.rs does not declare
+// `pub mod config`, so `config.rs` is not reachable through the library and
+// lib.rs edits are out of scope. The CLI therefore owns a TOKEN-FREE mirror
+// of config.rs's precedence chain (canonical AUTH_CLOUDFLARE_* → legacy
+// CLOUDFLARE_* aliases → config file): it resolves the account id and
+// detects token PRESENCE only - the token value never enters this binary at
+// all, which is strictly safer than the core's SecretString. Everything else
+// (cache paths, cache read/staleness, endpoint construction) uses the
+// library's exported API, so no core logic is duplicated.
 
 /// Exit code - command succeeded; health checks passed.
 const EXIT_OK: i32 = 0;
@@ -89,12 +74,17 @@ const EXIT_UNSAFE_CONFIG: i32 = 7;
 /// (and exits 4 - stale cache successfully used, feedback 02).
 const CACHE_MAX_AGE: Duration = Duration::from_secs(6 * 3600);
 
-/// Dummy 32-hex account id used only to probe "is a token configured"
-/// through the core's authoritative precedence chain. Never printed.
-const PROBE_ACCOUNT: &str = "00000000000000000000000000000000";
-/// Dummy token used only to probe "is an account configured" through the
-/// core's authoritative precedence chain. Never printed.
-const PROBE_TOKEN: &str = "cfut_probe_dummy_token_0000";
+/// Canonical env vars (config.rs contract, feedback 03/06).
+const ACCOUNT_ID_ENV: &str = "AUTH_CLOUDFLARE_ACCOUNT_ID";
+const API_TOKEN_ENV: &str = "AUTH_CLOUDFLARE_API_TOKEN";
+const BASE_URL_ENV: &str = "AUTH_CLOUDFLARE_WORKERS_AI_BASE_URL";
+const CACHE_DIR_ENV: &str = "AUTH_CLOUDFLARE_CACHE_DIR";
+const CONFIG_ENV: &str = "AUTH_CLOUDFLARE_CONFIG";
+const LEGACY_HERMES_TOKEN_ENV: &str = "HERMES_CUSTOM_API_CLOUDFLARE_COM_API_KEY";
+/// Expected Cloudflare account ID shape (config.rs contract).
+const ACCOUNT_ID_LEN: usize = 32;
+/// Default config file name under `$HERMES_HOME/auth-cloudflare/`.
+const CONFIG_FILE_NAME: &str = "config.json";
 
 /// Optional override for the `catalog export` output directory (dev/test
 /// knob; defaults to the current working directory).
@@ -336,28 +326,23 @@ fn version_json() -> (i32, serde_json::Value) {
 /// Exit codes: 0 ok · 2 credentials missing/invalid · 7 unsafe config
 /// (config file carries an `api_token` VALUE - feedback 02 forbids that).
 fn doctor_json() -> (i32, serde_json::Value) {
-	let account_id = probe_account_id();
+	let resolved = resolve_config();
+	let account_id = resolved.account_id.clone();
 	let account_configured = account_id.is_some();
-	let token_configured = probe_token_configured();
-	let config_path = resolve_config_path();
-	let unsafe_config = detect_unsafe_config(&config_path);
+	let token_configured = resolved.token_configured;
+	let unsafe_config = detect_unsafe_config(&resolved.config_path);
 
 	let (redacted, base_url, cache_dir) = match &account_id {
 		Some(id) => {
 			let redacted = redact_account_id(id);
-			let base_url = match std::env::var(BASE_URL_ENV).ok().filter(|v| !v.trim().is_empty()) {
+			let base_url = match &resolved.base_url_override {
 				// Explicit override is user configuration, not a secret -
 				// show it as-is.
-				Some(url) => Some(url),
+				Some(url) => Some(url.clone()),
 				// Derived endpoint - account id redacted.
 				None => Some(AuthProvider::new(id).base_url().replace(id.as_str(), "<redacted>")),
 			};
-			let cache_dir = ConfigBuilder::new()
-				.api_token(PROBE_TOKEN)
-				.build()
-				.ok()
-				.map(|config| config.cache_dir());
-			(Some(redacted), base_url, cache_dir)
+			(Some(redacted), base_url, resolved.cache_dir.clone())
 		},
 		None => (None, None, None),
 	};
@@ -404,32 +389,93 @@ fn doctor_json() -> (i32, serde_json::Value) {
 	(exit, value)
 }
 
-/// Resolve the account id through the core's authoritative precedence chain
-/// without requiring a real token (a dummy token is pinned; the built Config
-/// is dropped immediately and never printed).
-fn probe_account_id() -> Option<String> {
-	ConfigBuilder::new()
-		.api_token(PROBE_TOKEN)
-		.build()
-		.ok()
-		.map(|config| config.account_id().to_string())
+// ---------------------------------------------------------------------------
+// token-free configuration resolution (mirrors config.rs, no lib.rs edits)
+// ---------------------------------------------------------------------------
+
+/// Non-secret configuration resolved for the CLI. The API token VALUE is
+/// deliberately never resolved into this binary - only its presence - so no
+/// credential can leak through any code path, error, or serialization.
+struct ResolvedConfig {
+	/// Validated account id (exactly 32 ASCII hex digits), when resolvable.
+	account_id: Option<String>,
+	/// Whether an API token is present (canonical → legacy → file-named var).
+	token_configured: bool,
+	/// Account-scoped cache directory: override, file value, or derived
+	/// `$HERMES_HOME/cache/auth-cloudflare/<slug>/`.
+	cache_dir: Option<PathBuf>,
+	/// Explicit base-url override, when configured.
+	base_url_override: Option<String>,
+	/// Resolved user config file path (for unsafe-config detection).
+	config_path: PathBuf,
 }
 
-/// Resolve "is a token configured" through the core's authoritative
-/// precedence chain (a dummy valid-shape account id is pinned).
-fn probe_token_configured() -> bool {
-	ConfigBuilder::new().account_id(PROBE_ACCOUNT).build().is_ok()
+/// Resolve configuration through the exact config.rs precedence chain
+/// (canonical `AUTH_CLOUDFLARE_*` → legacy `CLOUDFLARE_*` aliases → user
+/// config file). The account id is validated for shape; whitespace-only
+/// values count as missing.
+fn resolve_config() -> ResolvedConfig {
+	let config_path = env_nonempty(CONFIG_ENV)
+		.map(PathBuf::from)
+		.unwrap_or_else(|| hermes_home().join("auth-cloudflare").join(CONFIG_FILE_NAME));
+	let file = read_config_file(&config_path);
+
+	let account_id = env_nonempty(ACCOUNT_ID_ENV)
+		.or_else(|| env_nonempty(ACCOUNT_ENV))
+		.or_else(|| file.account_id.clone())
+		.filter(|value| is_valid_account_id(value));
+
+	let token_configured = env_nonempty(API_TOKEN_ENV)
+		.or_else(|| env_nonempty(TOKEN_ENV))
+		.or_else(|| env_nonempty(LEGACY_HERMES_TOKEN_ENV))
+		.or_else(|| file.api_token_env.as_deref().and_then(env_nonempty))
+		.is_some();
+
+	let base_url_override = env_nonempty(BASE_URL_ENV).or_else(|| file.base_url.clone());
+
+	let cache_dir = env_nonempty(CACHE_DIR_ENV)
+		.map(PathBuf::from)
+		.or_else(|| file.cache_dir.map(PathBuf::from))
+		.or_else(|| account_id.as_ref().map(|id| cache_dir_for_account(&AuthProvider::new(id))));
+
+	ResolvedConfig { account_id, token_configured, cache_dir, base_url_override, config_path }
 }
 
-/// Resolve the user config file path (mirrors `config.rs` exactly).
-fn resolve_config_path() -> PathBuf {
-	std::env::var(CONFIG_ENV).ok().map(PathBuf::from).unwrap_or_else(|| {
-		let home = std::env::var("HERMES_HOME")
-			.ok()
-			.filter(|v| !v.trim().is_empty())
-			.unwrap_or_else(|| format!("{}/.hermes", std::env::var("HOME").unwrap_or_else(|_| "~".to_string())));
-		PathBuf::from(home).join("auth-cloudflare").join("config.json")
-	})
+/// Non-secret user config file (JSON) - same shape as config.rs's
+/// FileConfig. A stray `api_token` VALUE is ignored by serde here (it is
+/// flagged separately by `detect_unsafe_config`).
+#[derive(Default, serde::Deserialize)]
+struct ConfigFile {
+	account_id: Option<String>,
+	base_url: Option<String>,
+	cache_dir: Option<String>,
+	api_token_env: Option<String>,
+}
+
+/// Read the config file; missing/unreadable/malformed files resolve to an
+/// empty config (never an error - matches config.rs).
+fn read_config_file(path: &Path) -> ConfigFile {
+	let Ok(raw) = std::fs::read_to_string(path) else {
+		return ConfigFile::default();
+	};
+	serde_json::from_str(&raw).unwrap_or_default()
+}
+
+/// Read a non-empty (after trim) environment variable, if present.
+fn env_nonempty(name: &str) -> Option<String> {
+	std::env::var(name).ok().map(|v| v.trim().to_string()).filter(|v| !v.is_empty())
+}
+
+/// Cloudflare account ids are 32 ASCII hex digits (config.rs contract).
+fn is_valid_account_id(value: &str) -> bool {
+	value.len() == ACCOUNT_ID_LEN && value.bytes().all(|b| b.is_ascii_hexdigit())
+}
+
+/// Resolve `$HERMES_HOME`, falling back to `~/.hermes` (config.rs contract).
+fn hermes_home() -> PathBuf {
+	env_nonempty("HERMES_HOME")
+		.map(PathBuf::from)
+		.unwrap_or_else(|| PathBuf::from(std::env::var("HOME").unwrap_or_else(|_| "~".to_string())).join(".hermes"))
 }
 
 /// True when the user config file carries an `api_token` VALUE. The config
@@ -500,8 +546,11 @@ struct ResolvedCatalog {
 /// `FALLBACK_MODELS` whenever the cache is absent, unreadable, or unusable.
 /// Never panics, never touches the network (v0.0.1).
 fn resolve_catalog_data() -> ResolvedCatalog {
-	let config = Config::from_env_lenient();
-	let cache_dir = config.as_ref().map(|config| config.cache_dir());
+	let resolved_config = resolve_config();
+	// The cache dir is only meaningful with a valid account id (the derived
+	// default is account-scoped); an override without credentials is not
+	// trusted for catalog reads.
+	let cache_dir = resolved_config.cache_dir.filter(|_| resolved_config.account_id.is_some());
 
 	let mut resolved = ResolvedCatalog {
 		source: "fallback",
@@ -558,18 +607,31 @@ fn display_name_from_id(id: &str) -> String {
 	let model = rest.split('/').last().unwrap_or(rest);
 	let mut out = String::new();
 	let mut capitalize_next = true;
+	let mut previous_was_digit = false;
 	for ch in model.chars() {
 		if ch == '-' || ch == '_' {
 			out.push(' ');
 			capitalize_next = true;
-		} else if capitalize_next {
+			previous_was_digit = false;
+		} else if capitalize_next || previous_was_digit {
 			out.extend(ch.to_uppercase());
 			capitalize_next = false;
+			previous_was_digit = ch.is_ascii_digit();
 		} else {
 			out.push(ch);
+			previous_was_digit = ch.is_ascii_digit();
 		}
 	}
-	out.split_whitespace().collect::<Vec<_>>().join(" ")
+	out.split_whitespace()
+		.map(|word| match word {
+			// Brand casing where generic capitalization is wrong.
+			"Deepseek" => "DeepSeek".to_string(),
+			"Openai" => "OpenAI".to_string(),
+			"Glm" => "GLM".to_string(),
+			other => other.to_string(),
+		})
+		.collect::<Vec<_>>()
+		.join(" ")
 }
 
 /// The feedback-06 per-model object shared by `catalog get` and
@@ -658,8 +720,9 @@ fn catalog_refresh_json() -> (i32, serde_json::Value) {
 /// `catalog diff` - cache snapshot vs the bundled fallback list. Exit 1 when
 /// there is no cache to diff against.
 fn catalog_diff_json() -> (i32, serde_json::Value) {
-	let config = Config::from_env_lenient();
-	let Some(cache_dir) = config.as_ref().map(|config| config.cache_dir()) else {
+	let resolved = resolve_config();
+	let cache_dir = resolved.cache_dir.filter(|_| resolved.account_id.is_some());
+	let Some(cache_dir) = cache_dir else {
 		return (
 			EXIT_OPERATIONAL,
 			serde_json::json!({
@@ -894,7 +957,7 @@ fn doc_cache_age_seconds(fetched_at: &str) -> u64 {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::auth::{ACCOUNT_ENV, TOKEN_ENV};
+	use auth_cloudflare::auth::{ACCOUNT_ENV, TOKEN_ENV};
 
 	/// Every env var the CLI or core reads, saved/restored for isolation.
 	const ALL_VARS: &[&str] = &[
@@ -924,7 +987,7 @@ mod tests {
 	where
 		F: FnOnce() -> R,
 	{
-		let _guard = ENV_LOCK.lock().unwrap();
+		let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
 		let saved: Vec<(String, Option<String>)> = ALL_VARS
 			.iter()
 			.map(|key| ((*key).to_string(), std::env::var(key).ok()))
@@ -974,12 +1037,7 @@ mod tests {
 
 	/// Seed the account-scoped cache for the synthetic account/token env.
 	fn seed_cache(fetched_at: &str, model_ids: &[&str]) {
-		let dir = ConfigBuilder::new()
-			.account_id(ACCOUNT)
-			.api_token(TOKEN)
-			.build()
-			.expect("probe config")
-			.cache_dir();
+		let dir = cache_dir_for_account(&AuthProvider::new(ACCOUNT));
 		let data: Vec<serde_json::Value> =
 			model_ids.iter().map(|id| serde_json::json!({ "id": id, "name": id })).collect();
 		let payload = serde_json::json!({ "data": data });
@@ -990,7 +1048,7 @@ mod tests {
 			model_count: model_ids.len(),
 			account_fingerprint: "0123456789abcdef".to_string(),
 		};
-		crate::cache::write_catalog_cache(&dir, &meta, &payload).expect("seed cache");
+		auth_cloudflare::cache::write_catalog_cache(&dir, &meta, &payload).expect("seed cache");
 	}
 
 	// ------------------------------------------------------------------
@@ -1170,6 +1228,7 @@ mod tests {
 	fn doctor_detects_unsafe_config_exit_7() {
 		let home = scratch_dir("doctor-unsafe");
 		let _ = std::fs::remove_dir_all(&home);
+		std::fs::create_dir_all(&home).expect("create scratch dir");
 		let config_path = home.join("config.json");
 		std::fs::write(
 			&config_path,
@@ -1214,7 +1273,7 @@ mod tests {
 
 	#[test]
 	fn redact_account_id_patterns() {
-		assert_eq!(redact_account_id("624acc1234567890abcdef123456789f84"), "624acc…789f84");
+		assert_eq!(redact_account_id("624acc1234567890abcdef123456789f84"), "624acc…9f84");
 		assert_eq!(redact_account_id("abcdef"), "ab…ef");
 		assert_eq!(redact_account_id("ab"), "a…");
 		assert_eq!(redact_account_id(""), "…");
@@ -1351,10 +1410,12 @@ mod tests {
 	fn export_yaml_and_markdown_derive_from_catalog() {
 		let home = scratch_dir("export");
 		let _ = std::fs::remove_dir_all(&home);
+		std::fs::create_dir_all(&home).expect("create scratch dir");
 		with_env(
 			&[
 				(ACCOUNT_ENV, Some(ACCOUNT)),
 				(TOKEN_ENV, Some(TOKEN)),
+				("HERMES_HOME", Some(home.to_str().unwrap())),
 				(EXPORT_DIR_ENV, Some(home.to_str().unwrap())),
 			],
 			|| {
@@ -1369,7 +1430,8 @@ mod tests {
 				let md = std::fs::read_to_string(home.join("catalog.generated.md")).expect("md file");
 				assert!(md.contains("Cloudflare Workers AI catalog"));
 				assert!(md.contains("| Model | Status |"));
-				assert!(md.contains(DEFAULT_MODEL));
+				// Markdown rows show display names; ids appear in YAML.
+				assert!(md.contains("DeepSeek V4 Flash 0731"));
 			},
 		);
 		let _ = std::fs::remove_dir_all(&home);
@@ -1461,6 +1523,7 @@ mod tests {
 	fn unsafe_config_detection_ignores_missing_or_safe_files() {
 		let home = scratch_dir("unsafe-detect");
 		let _ = std::fs::remove_dir_all(&home);
+		std::fs::create_dir_all(&home).expect("create scratch dir");
 		assert!(!detect_unsafe_config(&home.join("missing.json")), "missing file is safe");
 		let safe = home.join("safe.json");
 		std::fs::write(&safe, r#"{"account_id":"0123456789abcdef0123456789abcdef"}"#).expect("write safe config");

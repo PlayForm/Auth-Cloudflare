@@ -2,11 +2,11 @@
 
 > [!NOTE]
 >
-> Cloudflare AI auth provider for Hermes Agent - a first-class model-provider
-> plugin with live, account-aware catalog discovery. No `custom_providers`
-> wiring, no bash URL adaptation, no stale model lists: install the plugin,
-> export two environment variables, and `hermes model` offers every Cloudflare
-> AI chat model your account can invoke.
+> Auth Cloudflare Workers AI adds direct, OpenAI-compatible access to
+> Cloudflare-hosted Workers AI text-generation models available to your
+> Cloudflare account. No `custom_providers` wiring, no bash URL adaptation,
+> no stale model lists: install the plugin, export two environment variables,
+> and `hermes model` offers the account's Workers AI chat models.
 > _One provider. Two env vars. Zero hand-rolled YAML._
 
 [![release](https://img.shields.io/static/v1?label=release&message=v0.0.1&color=blue)](https://github.com/PlayForm/Cloudflare/releases)
@@ -37,19 +37,22 @@ hermes
 
 ```sh
 export CLOUDFLARE_ACCOUNT_ID="<your account id>"   # Workers & Pages → Overview
-export CLOUDFLARE_API_TOKEN="<scoped token>"       # Account → Cloudflare AI → Edit
-hermes model                                       # pick: Cloudflare AI
+export CLOUDFLARE_API_TOKEN="<scoped token>"       # Account → Workers AI → Write
+hermes model                                       # pick: Auth Cloudflare Workers AI
 ```
 
 The account ID is operational metadata, not a secret. The API token **is** a
-secret - scope it to **Account → Cloudflare AI → Edit** and nothing else.
+secret - scope it to **Account → Workers AI → Write** (some dashboard versions
+label the same permission **Workers AI → Edit**) and nothing else. Do not
+request DNS, Workers Scripts, R2, D1, KV, Pages, Zero Trust, or account
+administration permissions.
 
 > [!IMPORTANT]
 >
 > The provider path is pure Python - no compiled dependencies, no binary
 > download, works on macOS, Linux, and Windows alike. `download.sh` only
 > matters for the optional Rust dylib flow (`binaries/`), which is not
-> required to use Cloudflare AI in Hermes.
+> required to use Cloudflare Workers AI in Hermes.
 
 ### From source
 
@@ -104,9 +107,9 @@ fallback catalog keeps the picker alive when the network is unavailable.
 
 Four steps:
 
-1. **Register** - `register_provider()` adds `auth-cloudflare-ai` to the
-   Hermes provider registry with aliases `cloudflare`, `cloudflare-ai`,
-   `auth-cloudflare-workers-ai`, and more.
+1. **Register** - `register_provider()` adds `auth-cloudflare-workers-ai` to
+   the Hermes provider registry (aliases include `cloudflare`, `cloudflare-ai`,
+   `auth-cloudflare-ai`, and more).
 2. **Resolve** - the account ID from the environment derives every endpoint
    (`base_url`, `models_url`, `verify_url`) - one source of truth, shared by
    the Python plugin and the Rust core.
@@ -135,15 +138,15 @@ plugins/auth-hermes-cloudflare/  ← Hermes plugin (submodule → Hermes-Cloudfl
 
 profiles/dev-cloudflare/         ← working Hermes profile (provider block)
 skills/                          ← cloudflare-* skills
-.hermes/                         ← plan + development conversation archive
+.playform/                        ← plan + development conversation archive
 ```
 
-| Route | Purpose |
-| :---- | :------ |
-| `POST …/accounts/<ACCOUNT_ID>/ai/v1/chat/completions` | OpenAI-compatible inference |
-| `GET  …/accounts/<ACCOUNT_ID>/ai/models/search` | Account-aware model catalog (OpenRouter format) |
-| `GET  /client/v4/user/tokens/verify` | Token health check |
-| `POST …/accounts/<ACCOUNT_ID>/ai/run/<model>` | Native REST inference (not used by the plugin) |
+| Route                                                 | Purpose                                         |
+| :---------------------------------------------------- | :---------------------------------------------- |
+| `POST …/accounts/<ACCOUNT_ID>/ai/v1/chat/completions` | OpenAI-compatible inference                     |
+| `GET  …/accounts/<ACCOUNT_ID>/ai/models/search`       | Account-aware model catalog (OpenRouter format) |
+| `GET  /client/v4/user/tokens/verify`                  | Token health check                              |
+| `POST …/accounts/<ACCOUNT_ID>/ai/run/<model>`         | Native REST inference (not used by the plugin)  |
 
 All endpoint/auth logic lives in the Rust core (`crates/auth-cloudflare`);
 the Python plugin is a thin in-process provider that mirrors it for the
@@ -159,18 +162,30 @@ picker and wizard paths.
 
 ## Provider Surface 🔧
 
-| Aspect | Value |
-| :----- | :---- |
-| Provider name | `auth-cloudflare-ai` |
-| Aliases | `cloudflare`, `cloudflare-ai`, `auth-cloudflare-workers-ai`, `cloudflare-workers-ai`, `workers-ai`, `cf-workers-ai`, `cf` |
-| Display name | `Cloudflare AI` |
-| API mode | `chat_completions` |
-| Auth type | `api_key` |
-| Base URL | derived from the account ID - `fixed_base_url`, the setup wizard never prompts for an override |
-| Health check | disabled (no `/models` endpoint); token verify is used instead |
-| Signup | [dash.cloudflare.com/profile/api-tokens](https://dash.cloudflare.com/profile/api-tokens) |
-| Default model | `@cf/deepseek-ai/deepseek-v4-flash-0731` |
-| Fallback catalog | 22 curated chat models compiled into the profile |
+| Aspect           | Value                                                                                                                     |
+| :--------------- | :------------------------------------------------------------------------------------------------------------------------ |
+| Provider name    | `auth-cloudflare-workers-ai`                                                                                              |
+| Aliases          | `cloudflare`, `cloudflare-ai`, `auth-cloudflare-workers-ai`, `cloudflare-workers-ai`, `workers-ai`, `cf-workers-ai`, `cf` |
+| Display name     | `Auth Cloudflare Workers AI`                                                                                              |
+| API mode         | `chat_completions`                                                                                                        |
+| Auth type        | `api_key`                                                                                                                 |
+| Base URL         | derived from the account ID - `fixed_base_url`, the setup wizard never prompts for an override                            |
+| Health check     | disabled (no `/models` endpoint); token verify is used instead                                                            |
+| Signup           | [dash.cloudflare.com/profile/api-tokens](https://dash.cloudflare.com/profile/api-tokens)                                  |
+| Default model    | `@cf/deepseek-ai/deepseek-v4-flash-0731`                                                                                  |
+| Fallback catalog | 22 curated chat models compiled into the profile                                                                          |
+
+---
+
+## Skills 🧠
+
+The repo ships three Hermes skills alongside the plugin:
+
+| Skill                         | Purpose                                                                                        |
+| :---------------------------- | :--------------------------------------------------------------------------------------------- |
+| `cloudflare-dev-workflow`     | Reverse-PR git workflow - `feat-dev`/`trunk` integration, `Source` remote, no direct pushes    |
+| `cloudflare-operations`       | Operational patterns - endpoints, catalog refresh, troubleshooting                             |
+| `cloudflare-release-workflow` | Release process - version sync, `Cloudflare/v*` tag naming, `BINARY_VERSION`, download scripts |
 
 ---
 
@@ -180,10 +195,10 @@ Everything is driven by two environment variables - no recompile, no config
 file to keep in sync. The `AUTH_CLOUDFLARE_*` names are the canonical ones;
 the `CLOUDFLARE_*` names remain as the legacy Hermes-compatible aliases.
 
-| Variable | Role | Secret |
-| :------- | :--- | :----- |
-| `CLOUDFLARE_ACCOUNT_ID` / `AUTH_CLOUDFLARE_ACCOUNT_ID` | account ID (Workers & Pages → Overview) | no |
-| `CLOUDFLARE_API_TOKEN` / `AUTH_CLOUDFLARE_API_TOKEN` | API token (Account → Cloudflare AI → Edit) | **yes** |
+| Variable                                               | Role                                                                    | Secret  |
+| :----------------------------------------------------- | :---------------------------------------------------------------------- | :------ |
+| `CLOUDFLARE_ACCOUNT_ID` / `AUTH_CLOUDFLARE_ACCOUNT_ID` | account ID (Workers & Pages → Overview)                                 | no      |
+| `CLOUDFLARE_API_TOKEN` / `AUTH_CLOUDFLARE_API_TOKEN`   | API token (Account → Workers AI → Write; some dashboards label it Edit) | **yes** |
 
 The token is only ever sent as a `Bearer` header - never logged, never echoed,
 never rendered by `Debug`/`Display` (the Rust core redacts it in both).
@@ -192,13 +207,13 @@ never rendered by `Debug`/`Display` (the Rust core redacts it in both).
 
 ```yaml
 model:
-  default: "@cf/deepseek-ai/deepseek-v4-flash-0731"
-  provider: cloudflare
+    default: "@cf/deepseek-ai/deepseek-v4-flash-0731"
+    provider: cloudflare
 providers:
-  cloudflare:
-    api_key_env: CLOUDFLARE_API_TOKEN
-    base_url: https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/ai/v1
-    api_mode: chat_completions
+    cloudflare:
+        api_key_env: CLOUDFLARE_API_TOKEN
+        base_url: https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/ai/v1
+        api_mode: chat_completions
 ```
 
 > [!TIP]
@@ -230,6 +245,74 @@ curated catalog compiled into the profile (22 chat models).
 > `unsupported` from absent metadata - capability unknown ≠ capability
 > unsupported.
 
+**`Curated fallback catalog (22 chat models)`**
+
+```text
+@cf/deepseek-ai/deepseek-v4-flash-0731          @cf/moonshotai/kimi-k2.7-code
+@cf/deepseek-ai/deepseek-v4-pro-0813           @cf/openai/gpt-oss-120b
+@cf/openai/gpt-oss-20b                         @cf/zai-org/glm-5.3
+@cf/qwen/qwen3.8-27b                           @cf/qwen/qwen3-30b-a3b-fp8
+@cf/qwen/qwen2.5-coder-32b-instruct            @cf/meta/llama-4-scout-17b-16e-instruct
+@cf/meta/llama-3.3-70b-instruct-fp8-fast       @cf/mistralai/mistral-small-3.1-24b-instruct
+@cf/nvidia/nemotron-3-120b-a12b                @cf/ibm-granite/granite-4.0-h-micro
+@cf/zai-org/glm-4.7-flash                      @cf/moonshotai/kimi-k2.6
+@cf/deepseek-ai/deepseek-r1-distill-qwen-32b  @cf/meta/llama-3.1-8b-instruct-fp8
+@cf/meta/llama-3.2-1b-instruct                 @cf/meta/llama-3.2-3b-instruct
+@cf/meta/llama-3.2-11b-vision-instruct         @cf/qwen/qwq-32b
+```
+
+---
+
+## Scope 🎯
+
+Supported:
+
+- Direct Cloudflare-hosted `@cf/...` Workers AI text-generation models.
+- OpenAI-compatible Chat Completions.
+- Hermes-owned tools: terminal, filesystem, browser, Git, and installed skills.
+- Account-aware Workers AI catalog discovery.
+
+Not supported in this release:
+
+- Cloudflare AI Gateway third-party models.
+- Anthropic Messages, Gemini-native, or provider-specific API protocols.
+- Image, video, embedding, speech, reranking, or safety-only models as
+  the primary Hermes agent.
+- Cloudflare MCP account operations.
+- Automatic model failover.
+
+---
+
+## Troubleshooting ❓
+
+| Symptom                                                      | Cause / fix                                                                                                                                                                 |
+| :----------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `could not verify this endpoint via …/ai/v1/models`          | Expected - Cloudflare has no OpenAI `/models` endpoint. The provider disables health probing (`supports_health_check=False`) and discovers via `/ai/models/search` instead. |
+| `Missing environment variable CLOUDFLARE_ACCOUNT_ID`         | The error names the exact variable and prints the fix: export it from Workers & Pages → Overview → Account ID.                                                              |
+| `Missing environment variable CLOUDFLARE_API_TOKEN`          | Export a custom token scoped to Account → Workers AI → Write (some dashboards label it Edit).                                                                               |
+| Token verify returns 401 / 403                               | Wrong, expired, or under-scoped token - check `GET /client/v4/user/tokens/verify` and re-create the token with Account → Workers AI → Edit.                                 |
+| Catalog fetch fails (API error, missing data array, timeout) | Non-fatal by design - the provider falls back to the curated 22-model catalog and the picker keeps working.                                                                 |
+
+---
+
+## Development 🛠️
+
+**`Terminal`**
+
+```sh
+cargo test --workspace          # unit tests: endpoint stability, token redaction
+cargo clippy --workspace -- -D warnings
+cargo fmt --all --check
+pnpm FormatCheck               # prettier --check over the repo
+```
+
+- CI `Check.yml` runs fmt, clippy, and tests on every push/PR.
+- CI `Build.yml` builds release dylibs for four targets
+  (aarch64/x86_64 macOS + Linux) on `Cloudflare/v*` tags and attaches them
+  to the release - the exact assets `download.sh` fetches.
+- Git flow is a reverse-PR workflow: `feat-dev`/`trunk` branches, `Source`
+  remote, no direct pushes - see the `cloudflare-dev-workflow` skill.
+
 ---
 
 ## Relationship to Hermes Agent 🔗
@@ -251,8 +334,8 @@ plugin. Cloudflare implements exactly that contract:
 
 ## Contributing 🤝
 
-| Want to…          | Start here                                                                                 |
-| ----------------- | ------------------------------------------------------------------------------------------ |
+| Want to…          | Start here                                                                                  |
+| ----------------- | ------------------------------------------------------------------------------------------- |
 | Report a bug      | [Open an issue](https://github.com/PlayForm/Cloudflare/issues/new?template=bug_report.md)   |
 | Suggest a feature | [Start a discussion](https://github.com/PlayForm/Cloudflare/discussions/new?category=ideas) |
 | Submit a PR       | [Fork & open a PR](https://github.com/PlayForm/Cloudflare/pulls)                            |
