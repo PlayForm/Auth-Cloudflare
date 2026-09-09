@@ -1,0 +1,13 @@
+{
+	"id": "@cf/meta/llama-guard-3-8b",
+	"name": "Llama Guard 3 8B",
+	"vendor_name": "Meta",
+	"description": "Llama Guard 3 8B - safety classifier for input/output moderation. Hidden from the primary agent picker; never a primary agent model.",
+	"context_length": 131072,
+	"created": 1788800000,
+	"pricing": {
+		"prompt": "0.00000005",
+		"completion": "0.00000015",
+		"request": "0"
+	}
+}
