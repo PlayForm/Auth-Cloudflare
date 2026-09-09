@@ -39,34 +39,52 @@ jobs:
         with:
           submodules: recursive
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.96.0
         with:
           targets: ${{ matrix.target }}
 
-      - name: Build dylib
-        run: cargo build --release -p cloudflare-hermes --target ${{ matrix.target }}
+      - name: Install cross linker (Linux arm64)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> "$GITHUB_ENV"
 
-      - name: Package
+      - name: Build release binaries
+        run: cargo build --release -p auth-cloudflare -p auth-hermes-cloudflare --target ${{ matrix.target }}
+
+      - name: Package tarballs + SHA256SUMS
         shell: bash
         run: |
-          VERSION=$(grep '^version' crates/cloudflare-hermes/Cargo.toml | head -1 | awk -F'"' '{print $2}')
-          ASSET="cloudflare-hermes-${{ matrix.target }}.tar.gz"
+          set -euo pipefail
+          VERSION=$(grep '^version' crates/auth-cloudflare/Cargo.toml | head -1 | awk -F'"' '{print $2}')
+          T="${{ matrix.target }}"
           STAGE=$(mktemp -d)
-          case "${{ matrix.target }}" in
-            *windows*) DYLIB="target/${{ matrix.target }}/release/cloudflare_hermes.dll" ;;
-            *darwin*) DYLIB="target/${{ matrix.target }}/release/libcloudflare_hermes.dylib" ;;
-            *) DYLIB="target/${{ matrix.target }}/release/libcloudflare_hermes.so" ;;
+          cp "target/$T/release/auth-cloudflare" "$STAGE/auth-cloudflare"
+          case "$T" in
+            *darwin*) LIB="target/$T/release/libauth_hermes_cloudflare.dylib" ;;
+            *windows*) LIB="target/$T/release/auth_hermes_cloudflare.dll" ;;
+            *) LIB="target/$T/release/libauth_hermes_cloudflare.so" ;;
           esac
-          cp "$DYLIB" "$STAGE/"
-          tar -czf "$ASSET" -C "$STAGE" .
-          echo "ASSET=$ASSET" >> "$GITHUB_ENV"
+          cp "$LIB" "$STAGE/"
+          tar -czf "auth-cloudflare-$T.tar.gz" -C "$STAGE" auth-cloudflare
+          tar -czf "auth-hermes-cloudflare-$T.tar.gz" -C "$STAGE" "$(basename "$LIB")"
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum auth-cloudflare-$T.tar.gz auth-hermes-cloudflare-$T.tar.gz > SHA256SUMS
+          else
+            shasum -a 256 auth-cloudflare-$T.tar.gz auth-hermes-cloudflare-$T.tar.gz > SHA256SUMS
+          fi
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "Packed auth-cloudflare-$T.tar.gz + auth-hermes-cloudflare-$T.tar.gz (v$VERSION)"
 
-      - name: Upload artifact
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.ASSET }}
-          path: ${{ env.ASSET }}
+          name: release-assets-${{ matrix.target }}
+          path: |
+            auth-cloudflare-${{ matrix.target }}.tar.gz
+            auth-hermes-cloudflare-${{ matrix.target }}.tar.gz
+            SHA256SUMS
 
   release:
     name: Release
