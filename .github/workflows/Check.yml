@@ -84,6 +84,55 @@ jobs:
           sys.exit(0 if ok else 1)
           '
 
+      - name: Regenerate catalog docs from fixtures (offline, no network)
+        # Seeds a scratch account cache from crates/auth-cloudflare/fixtures/
+        # and regenerates docs/catalog.generated.* through the binary's export
+        # commands. Deterministic: AUTH_CLOUDFLARE_CACHE_DIR pins the cache
+        # path (Config::cache_dir override), synthetic creds never touch the
+        # network, and the output must be non-empty + mark the source.
+        run: |
+          set -euo pipefail
+          SCRATCH="$(mktemp -d)"
+          trap 'rm -rf "$SCRATCH"' EXIT
+          CACHE_DIR="$SCRATCH/cache"
+          mkdir -p "$CACHE_DIR"
+          python3 - "$CACHE_DIR" <<'PY'
+          import json, os, sys, glob, datetime
+          cache_dir = sys.argv[1]
+          fixtures = sorted(glob.glob("crates/auth-cloudflare/fixtures/models/*.json"))
+          assert fixtures, "no Rust model fixtures found"
+          data = [json.load(open(f)) for f in fixtures]
+          with open(os.path.join(cache_dir, "catalog.json"), "w") as fh:
+              json.dump({"data": data}, fh)
+          meta = {
+              "schema_version": 1,
+              "fetched_at": datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z"),
+              "source": "cloudflare-workers-ai",
+              "model_count": len(data),
+              "account_fingerprint": "fixture",
+          }
+          with open(os.path.join(cache_dir, "catalog.meta.json"), "w") as fh:
+              json.dump(meta, fh)
+          PY
+          OUT="$SCRATCH/out"
+          mkdir -p "$OUT"
+          AUTH_CLOUDFLARE_EXPORT_DIR="$OUT" \
+          AUTH_CLOUDFLARE_CACHE_DIR="$CACHE_DIR" \
+          AUTH_CLOUDFLARE_ACCOUNT_ID="0123456789abcdef0123456789abcdef" \
+          AUTH_CLOUDFLARE_API_TOKEN="cfut_test_ci_fixture_regeneration" \
+            target/debug/auth-cloudflare catalog export yaml
+          AUTH_CLOUDFLARE_EXPORT_DIR="$OUT" \
+          AUTH_CLOUDFLARE_CACHE_DIR="$CACHE_DIR" \
+          AUTH_CLOUDFLARE_ACCOUNT_ID="0123456789abcdef0123456789abcdef" \
+          AUTH_CLOUDFLARE_API_TOKEN="cfut_test_ci_fixture_regeneration" \
+            target/debug/auth-cloudflare catalog export markdown
+          test -s "$OUT/catalog.generated.yaml"
+          test -s "$OUT/catalog.generated.md"
+          grep -q "GENERATED FILE" "$OUT/catalog.generated.yaml"
+          grep -q "Cloudflare Workers AI catalog" "$OUT/catalog.generated.md"
+          grep -q "deepseek-v4-flash-0731" "$OUT/catalog.generated.yaml"
+          echo "Fixture docs regeneration OK (3 fixture models, offline)."
+
       - name: Secret scan (literal tokens only)
         # Fails only on LITERAL secret values. Synthetic redaction-test values
         # (cfut_SECRET, cfut_leaked, cfut_test_*) and doc examples using shell

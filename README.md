@@ -49,10 +49,43 @@ administration permissions.
 
 > [!IMPORTANT]
 >
-> The provider path is pure Python - no compiled dependencies, no binary
-> download, works on macOS, Linux, and Windows alike. `download.sh` only
-> matters for the optional Rust dylib flow (`binaries/`), which is not
-> required to use Cloudflare Workers AI in Hermes.
+> The picker works pure-Python (no compiled dependencies). The
+> `auth-cloudflare` executable backs the full command surface - `hermes
+> cloudflare doctor / catalog refresh / model inspect`, catalog caching, and
+> the conformance commands (`model verify --suite smoke|tool-loop`, `model
+> health`). `download.sh` installs that executable (checksum-verified,
+> atomic, fail-closed) to a managed path; without it the picker still works
+> through the in-process fallback, but the diagnostics and conformance
+> commands are unavailable.
+
+### Binary CLI (optional but recommended)
+
+The Rust core ships as a single executable. Install it any of these ways:
+
+**`Terminal`** - cargo install (needs a Rust toolchain):
+
+```sh
+cargo install auth-cloudflare --locked
+```
+
+**`Terminal`** - via the plugin installer (checksum-verified download from the
+GitHub release, no Rust toolchain needed):
+
+```sh
+bash plugins/auth-hermes-cloudflare/download.sh
+```
+
+The binary is discovered in this order (plugin `locate_auth_cloudflare_binary`):
+`AUTH_CLOUDFLARE_BIN` env → `PATH` → `~/.hermes/bin/auth-cloudflare` → plugin
+`bin/` → plugin `binaries/`. `cargo install` puts it on `PATH`; `download.sh`
+installs to `~/.hermes/bin` (the managed Hermes binary directory).
+
+**`Terminal`** - verify the install:
+
+```sh
+auth-cloudflare version --format json   # name/protocol handshake
+hermes cloudflare doctor                # redacted status, binary-backed
+```
 
 ### From source
 
