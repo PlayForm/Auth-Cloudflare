@@ -73,9 +73,10 @@ curl -sS "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/a
 ## Recommended routing
 
 ```text
-Default:            @cf/zai-org/glm-5.3-flash
+Default:            @cf/deepseek-ai/deepseek-v4-flash-0731
 Code-heavy:         @cf/moonshotai/kimi-k2.7-code
-DeepSeek reasoning: @cf/deepseek-ai/deepseek-v4-flash-0731
+DeepSeek reasoning: @cf/deepseek-ai/deepseek-v4-pro-0813
+Experimental:       @cf/zai-org/glm-5.3-flash   (delivery conformance pending)
 Premium escalation: @cf/zai-org/glm-5.3
 Cheap fallback:     @cf/openai/gpt-oss-20b
 ```
