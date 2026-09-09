@@ -328,7 +328,7 @@ impl ModelRecord {
 				request_path: "/chat/completions".to_string(),
 			},
 			capabilities,
-			pricing,
+			pricing: pricing.unwrap_or(PricingPerMillion { input: None, cached_input: None, output: None }),
 			limits: ModelLimits {
 				context_tokens: item.get("context_length").and_then(|c| c.as_u64()),
 				max_output_tokens: None,
@@ -371,7 +371,7 @@ impl ModelRecord {
 		let day = doy - (153 * mp + 2) / 5 + 1;
 		let month = if mp < 10 { mp + 3 } else { mp - 9 };
 		let year = if month <= 2 { year + 1 } else { year };
-		NaiveDate::from_ymd_opt(year, month as u32, day as u32)
+		NaiveDate::from_ymd_opt(year, month as i32, day as i32)
 	}
 }
 
@@ -516,10 +516,7 @@ mod tests {
 
 	#[test]
 	fn date_from_epoch_converts() {
-		assert_eq!(
-			ModelRecord::date_from_epoch(1_788_800_000),
-			Some(NaiveDate::from_ymd_opt(2026, 9, 7))
-		);
-		assert_eq!(ModelRecord::date_from_epoch(0), Some(NaiveDate::from_ymd_opt(1970, 1, 1)));
+		assert_eq!(ModelRecord::date_from_epoch(1_788_800_000), NaiveDate::from_ymd_opt(2026, 9, 7));
+		assert_eq!(ModelRecord::date_from_epoch(0), NaiveDate::from_ymd_opt(1970, 1, 1));
 	}
 }
