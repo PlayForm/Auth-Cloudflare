@@ -611,8 +611,7 @@ mod ranking_tests {
 		let verification = verification(VerificationStatus::Passing, 100, 99, Some(0.96), Some(2_000));
 		let breakdown = RankingBreakdown::breakdown_for(&model, Some(&verification));
 		let json = serde_json::to_string(&breakdown).expect("ser");
-		let back: RankingBreakdown = serde_json::from_str(&json).expect("de");
-		assert_eq!(back, breakdown);
+		// The JSON text carries the snake_case contract.
 		let value: serde_json::Value = serde_json::from_str(&json).expect("parse");
 		for key in [
 			"model_id",
@@ -629,6 +628,33 @@ mod ranking_tests {
 			"weight_price",
 		] {
 			assert!(value.get(key).is_some(), "missing snake_case key {key}");
+		}
+		// f64 values lose ~1 ulp through the JSON text roundtrip (serde_json
+		// arbitrary_precision), so compare floats with tolerance.
+		let back: RankingBreakdown = serde_json::from_str(&json).expect("de");
+		assert_eq!(back.model_id, breakdown.model_id);
+		assert!(close_f64(back.score, breakdown.score), "score {back:?} vs {breakdown:?}");
+		for (actual, expected) in [
+			(back.delivery, breakdown.delivery),
+			(back.tool_loop, breakdown.tool_loop),
+			(back.context, breakdown.context),
+			(back.latency, breakdown.latency),
+			(back.price, breakdown.price),
+			(back.weight_delivery, breakdown.weight_delivery),
+			(back.weight_tool_loop, breakdown.weight_tool_loop),
+			(back.weight_context, breakdown.weight_context),
+			(back.weight_latency, breakdown.weight_latency),
+			(back.weight_price, breakdown.weight_price),
+		] {
+			assert!((actual - expected).abs() < 1e-12, "{actual} vs {expected}");
+		}
+	}
+
+	fn close_f64(actual: Option<f64>, expected: Option<f64>) -> bool {
+		match (actual, expected) {
+			(Some(actual), Some(expected)) => (actual - expected).abs() < 1e-12,
+			(None, None) => true,
+			_ => false,
 		}
 	}
 }

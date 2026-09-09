@@ -42,11 +42,10 @@ pub use policy::{
 };
 pub use schema::{VersionInfo, CATALOG_SCHEMA_VERSION, PROTOCOL_VERSION};
 pub use tool_loop::{
-	all_arguments_valid, execute_tool, find_duplicates, fixture_source, live_tests_enabled, run_tool_loop,
-	tool_schemas, validate_ordering, ToolCallObservation, ToolLoopOutcome, LIVE_TESTS_ENV, TOOL_LOOP_MAX_TURNS,
-	TOOL_LOOP_SYSTEM_PROMPT, TOOL_LOOP_USER_PROMPT,
+	all_arguments_valid, execute_tool, find_duplicates, fixture_source, run_tool_loop, tool_schemas, validate_ordering,
+	ToolCallObservation, ToolLoopOutcome, TOOL_LOOP_MAX_TURNS, TOOL_LOOP_SYSTEM_PROMPT, TOOL_LOOP_USER_PROMPT,
 };
-pub use verify::{HealthStore, SmokeRunReport, SuiteKind, live_tests_enabled, LIVE_TESTS_ENV, MAX_COST_ENV};
+pub use verify::{HealthStore, SmokeRunReport, SuiteKind, MAX_COST_ENV};
 
 /// crate version, from Cargo.toml.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

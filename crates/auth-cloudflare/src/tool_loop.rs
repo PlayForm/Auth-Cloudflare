@@ -66,7 +66,7 @@ pub const TOOL_LOOP_USER_PROMPT: &str = "Begin the fixture workflow. The target 
 /// The two deterministic in-memory fixtures. The enum on `fixture_id`
 /// mirrors this list exactly - the wire schema and the validator can never
 /// drift apart.
-const FIXTURE_ID_VALUES: &[&'static str] = &["calc", "greeter"];
+const FIXTURE_ID_VALUES: &[&str] = &["calc", "greeter"];
 
 /// `calc` fixture source: `add()` is intentionally off by one (returns 3 for
 /// `add(2, 2)`), so the controlled failure report ("got 3") is coherent with
@@ -369,7 +369,7 @@ fn arguments_valid_for_tool(name: &str, arguments: &serde_json::Value) -> bool {
 	let serde_json::Value::Object(map) = arguments else {
 		return false;
 	};
-	if spec.required.iter().any(|required| !map.contains_key(required)) {
+	if spec.required.iter().any(|required| !map.contains_key(*required)) {
 		return false;
 	}
 	for (key, value) in map.iter() {
@@ -626,8 +626,10 @@ fn post_chat_completion(
 	let request = agent
 		.post(url)
 		.set("Authorization", &auth_header(token))
-		.set("Accept", "application/json");
-	let (status, response) = match request.send_json(body) {
+		.set("Accept", "application/json")
+		.set("Content-Type", "application/json");
+	let payload = body.to_string();
+	let (status, response) = match request.send_string(&payload) {
 		Ok(response) => (response.status(), response),
 		Err(ureq::Error::Status(status, response)) => (status, response),
 		Err(transport) => {

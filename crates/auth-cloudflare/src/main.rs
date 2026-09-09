@@ -135,7 +135,7 @@ Environment (core precedence, feedback 03/06):
   AUTH_CLOUDFLARE_WORKERS_AI_BASE_URL, AUTH_CLOUDFLARE_CACHE_DIR,
   AUTH_CLOUDFLARE_CONFIG, AUTH_CLOUDFLARE_EXPORT_DIR (export target dir)
   AUTH_CLOUDFLARE_LIVE_TESTS=1 (opens the live gate for 'model verify';
-  paid inference is refused unless the value is exactly "1")
+  paid inference is refused unless the value is exactly the digit 1)
   AUTH_CLOUDFLARE_MAX_COST_USD=<budget> (optional conformance budget;
   reported as cost_estimate_usd in the run report, documented but never
   enforced)
@@ -250,26 +250,25 @@ fn parse_args(args: &[String]) -> Result<(Command, Option<String>), String> {
 			_ => return Err(format!("unknown catalog subcommand: {}", positional.join(" "))),
 		},
 		[first, rest @ ..] if first == "model" => match rest {
-				[sub, model_id] if sub == "inspect" => Command::ModelInspect { model_id: model_id.clone() },
-				[sub] if sub == "inspect" => {
-					return Err(
-						"model inspect requires a model id, e.g. model inspect @cf/deepseek-ai/deepseek-v4-flash-0731"
-							.to_string(),
-					);
-				},
-				[sub, model_id] if sub == "verify" => Command::ModelVerify {
-					model_id: model_id.clone(),
-					suite: SuiteKind::parse(suite.as_deref())?,
-				},
-				[sub] if sub == "verify" => {
-					return Err(
+			[sub, model_id] if sub == "inspect" => Command::ModelInspect { model_id: model_id.clone() },
+			[sub] if sub == "inspect" => {
+				return Err(
+					"model inspect requires a model id, e.g. model inspect @cf/deepseek-ai/deepseek-v4-flash-0731"
+						.to_string(),
+				);
+			},
+			[sub, model_id] if sub == "verify" => {
+				Command::ModelVerify { model_id: model_id.clone(), suite: SuiteKind::parse(suite.as_deref())? }
+			},
+			[sub] if sub == "verify" => {
+				return Err(
 						"model verify requires a model id, e.g. model verify @cf/deepseek-ai/deepseek-v4-flash-0731 [--suite smoke]"
 							.to_string(),
 					);
-				},
-				[sub] if sub == "health" => Command::ModelHealth,
-				_ => return Err(format!("unknown model subcommand: {}", positional.join(" "))),
 			},
+			[sub] if sub == "health" => Command::ModelHealth,
+			_ => return Err(format!("unknown model subcommand: {}", positional.join(" "))),
+		},
 		[first, rest @ ..] if first == "policy" => match rest {
 			[sub] if sub == "get" => Command::PolicyGet,
 			_ => return Err(format!("unknown policy subcommand: {}", positional.join(" "))),
@@ -1294,6 +1293,8 @@ mod tests {
 		"AUTH_CLOUDFLARE_CACHE_DIR",
 		"AUTH_CLOUDFLARE_CONFIG",
 		"AUTH_CLOUDFLARE_EXPORT_DIR",
+		"AUTH_CLOUDFLARE_LIVE_TESTS",
+		"AUTH_CLOUDFLARE_MAX_COST_USD",
 		"CLOUDFLARE_ACCOUNT_ID",
 		"CLOUDFLARE_API_TOKEN",
 		"HERMES_CUSTOM_API_CLOUDFLARE_COM_API_KEY",
@@ -2042,6 +2043,123 @@ mod tests {
 				assert_eq!(code, EXIT_OK);
 				assert_eq!(value["source"], "cache");
 				assert_eq!(value["status"], "experimental", "policy marks GLM-5.3 Flash experimental");
+			},
+		);
+		let _ = std::fs::remove_dir_all(&home);
+	}
+
+	// ------------------------------------------------------------------
+	// model verify / model health (Phase-3 conformance smoke suite)
+	// ------------------------------------------------------------------
+
+	#[test]
+	fn parses_model_verify_and_health_commands() {
+		let cases: &[(&[&str], Command)] = &[
+			(
+				&["model", "verify", DEFAULT_MODEL],
+				Command::ModelVerify { model_id: DEFAULT_MODEL.to_string(), suite: SuiteKind::Smoke },
+			),
+			(
+				&["model", "verify", DEFAULT_MODEL, "--suite", "smoke"],
+				Command::ModelVerify { model_id: DEFAULT_MODEL.to_string(), suite: SuiteKind::Smoke },
+			),
+			(
+				&["model", "verify", DEFAULT_MODEL, "--suite=smoke", "--format", "json"],
+				Command::ModelVerify { model_id: DEFAULT_MODEL.to_string(), suite: SuiteKind::Smoke },
+			),
+			(&["model", "health", "--format", "json"], Command::ModelHealth),
+		];
+		for (args, expected) in cases {
+			let owned: Vec<String> = args.iter().map(|arg| (*arg).to_string()).collect();
+			let (command, format) = parse_args(&owned).unwrap_or_else(|e| panic!("{args:?} should parse: {e}"));
+			assert_eq!(&command, expected, "args {args:?}");
+			let _ = format;
+		}
+	}
+
+	#[test]
+	fn unknown_suite_and_misplaced_suite_are_parse_errors() {
+		let owned = vec![
+			"model".to_string(),
+			"verify".to_string(),
+			DEFAULT_MODEL.to_string(),
+			"--suite".to_string(),
+			"tool-loop".to_string(),
+		];
+		assert!(parse_args(&owned).is_err(), "unknown suite must fail parsing");
+		let owned = vec!["version".to_string(), "--suite".to_string(), "smoke".to_string()];
+		assert!(parse_args(&owned).is_err(), "--suite outside model verify must fail parsing");
+		let owned = vec!["model".to_string(), "verify".to_string(), "--suite".to_string()];
+		assert!(parse_args(&owned).is_err(), "--suite without a value must fail parsing");
+	}
+
+	#[test]
+	fn model_verify_gate_closed_exits_1_without_network() {
+		with_env(&[], || {
+			let (code, value) = run_json(&["model", "verify", DEFAULT_MODEL, "--format", "json"]);
+			assert_eq!(code, EXIT_OPERATIONAL);
+			assert_eq!(value["status"], "error");
+			assert_eq!(value["gate"], "closed");
+			assert_eq!(
+				value["error"],
+				"live tests disabled (set AUTH_CLOUDFLARE_LIVE_TESTS=1 to allow paid inference)"
+			);
+			assert_eq!(value["exit_code"], EXIT_OPERATIONAL);
+			assert_eq!(value["model_id"], DEFAULT_MODEL);
+			assert_eq!(value["suite"], "smoke");
+			// No credentials were resolved and no fetch happened: the gate
+			// check precedes every other step.
+		});
+	}
+
+	#[test]
+	fn model_verify_gate_precedes_credentials() {
+		let home = scratch_dir("verify-gate-first");
+		let _ = std::fs::remove_dir_all(&home);
+		with_env(
+			&[
+				(ACCOUNT_ENV, Some(ACCOUNT)),
+				(TOKEN_ENV, Some(TOKEN)),
+				("HERMES_HOME", Some(home.to_str().unwrap())),
+			],
+			|| {
+				// Credentials are present but the gate is closed -> exit 1,
+				// never exit 2, and no network call is made.
+				let (code, value) = run_json(&["model", "verify", DEFAULT_MODEL, "--format", "json"]);
+				assert_eq!(code, EXIT_OPERATIONAL);
+				assert_eq!(value["gate"], "closed");
+			},
+		);
+		let _ = std::fs::remove_dir_all(&home);
+	}
+
+	#[test]
+	fn model_health_missing_creds_exits_2() {
+		with_env(&[], || {
+			let (code, value) = run_json(&["model", "health", "--format", "json"]);
+			assert_eq!(code, EXIT_CREDENTIALS);
+			assert_eq!(value["status"], "error");
+			assert_eq!(value["exit_code"], EXIT_CREDENTIALS);
+		});
+	}
+
+	#[test]
+	fn model_health_no_store_returns_empty_records() {
+		let home = scratch_dir("health-empty");
+		let _ = std::fs::remove_dir_all(&home);
+		with_env(
+			&[
+				(ACCOUNT_ENV, Some(ACCOUNT)),
+				(TOKEN_ENV, Some(TOKEN)),
+				("HERMES_HOME", Some(home.to_str().unwrap())),
+			],
+			|| {
+				let (code, value) = run_json(&["model", "health", "--format", "json"]);
+				assert_eq!(code, EXIT_OK);
+				assert_eq!(value["status"], "ok");
+				assert_eq!(value["records"], serde_json::json!({}));
+				assert!(value["updated_at"].is_string());
+				assert_eq!(value["exit_code"], EXIT_OK);
 			},
 		);
 		let _ = std::fs::remove_dir_all(&home);

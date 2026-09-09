@@ -51,6 +51,7 @@
 //! `0o600`) via `crate::cache::atomic_write`.
 
 use std::collections::BTreeMap;
+use std::io::BufRead;
 use std::path::Path;
 use std::time::{Duration, Instant};
 
@@ -475,7 +476,7 @@ pub fn check_tool_call(config: &Config, model_id: &str) -> Result<CheckOutcome, 
 			));
 		},
 	};
-	match classify_tool_response(Some(&body)) {
+	match classify_tool_response(Some(body.as_str())) {
 		None => Ok(CheckOutcome { passed: true, elapsed_ms, failure: None }),
 		Some(class) => Ok(failed_outcome(
 			class,
@@ -548,7 +549,7 @@ fn non_streaming_failure(
 	let class = if body.is_empty() {
 		FailureClass::Unknown
 	} else {
-		classify_http_failure(status, Some(&body), cf_ray.is_some())
+		classify_http_failure(status, Some(body.as_str()), cf_ray.is_some())
 	};
 	let excerpt = if body.is_empty() { None } else { Some(body) };
 	failed_outcome(class, Some(status), cf_ray, elapsed_ms, model_id, request_id, excerpt)
@@ -676,6 +677,9 @@ pub fn classify_transport_message(message: &str) -> FailureClass {
 /// MissingFinishReason, else Unknown.
 pub fn classify_completion_failure(body: Option<&str>) -> FailureClass {
 	let Some(body) = body else { return FailureClass::EmptyCompletion };
+	if body.trim().is_empty() {
+		return FailureClass::EmptyCompletion;
+	}
 	let value = match serde_json::from_str::<serde_json::Value>(body) {
 		Ok(value) => value,
 		Err(_) => return FailureClass::InvalidJson,
@@ -957,7 +961,7 @@ fn failure_counter_map(outcomes: &[&CheckOutcome]) -> (u32, u32, u32, u32, u32) 
 /// The versioned health store: one `ModelVerification` per model id, keyed
 /// by `model_id`. Lives at `Config::cache_dir()/model-health.json`, written
 /// atomically (sibling `.tmp` + rename, `0o600`).
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct HealthStore {
 	/// File layout version (`HEALTH_STORE_VERSION`).
@@ -984,6 +988,13 @@ impl HealthStore {
 	/// Read one model's record.
 	pub fn get(&self, model_id: &str) -> Option<&ModelVerification> {
 		self.records.get(model_id)
+	}
+}
+
+impl Default for HealthStore {
+	/// [`Self::new`] - a store with no records is the natural default state.
+	fn default() -> Self {
+		Self::new()
 	}
 }
 
@@ -1532,7 +1543,12 @@ mod tests {
 		store.upsert(verification_record(MODEL_A, VerificationStatus::Passing));
 		save_health_store(&dir, &store).expect("save");
 		let loaded = load_health_store(&dir).expect("load");
-		assert_eq!(loaded.records, store.records);
+		// `ModelVerification` deliberately has no `PartialEq` (health.rs), so
+		// compare through serialization.
+		assert_eq!(
+			serde_json::to_value(&loaded.records).expect("records serialize"),
+			serde_json::to_value(&store.records).expect("records serialize")
+		);
 		assert_eq!(loaded.version, HEALTH_STORE_VERSION);
 		// The atomic write leaves no stray temp file behind.
 		assert!(!dir.join("model-health.tmp").exists(), "no .tmp may survive a save");
@@ -1614,6 +1630,5 @@ mod tests {
 		with_env(&[(MAX_COST_ENV, Some("0.05")), (LIVE_TESTS_ENV, Some("1"))], || {
 			assert_eq!(max_cost_usd_env(), Some(0.05));
 		});
-		assert!(SMOKE_SUITE_ESTIMATED_COST_USD > 0.0);
 	}
 }
