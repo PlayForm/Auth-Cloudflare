@@ -15,41 +15,53 @@
 //! auth-cloudflare policy get [--format json]
 //! ```
 //!
-//! Offline-safety contract (v0.0.1): `version`, `doctor`, `policy get`, and
-//! `model inspect` never touch the network. `catalog get|list|export|diff`
-//! are cache-first (`read_catalog_cache`) with the bundled `FALLBACK_MODELS`
-//! as the offline fallback; no live fetch is attempted because the Rust
-//! standard library has no TLS-capable HTTP client and the workspace adds no
-//! network dependencies. `catalog refresh` therefore exits 3 with an
-//! actionable "live fetch not yet wired" message until a TLS-capable client
-//! (e.g. `reqwest`/`ureq`) is added to the workspace.
+//! Offline-safety contract: `version`, `doctor`, and `policy get` never
+//! touch the network. `catalog refresh` is live-first: a typed
+//! `/ai/models/search` GET (through the core's `fetch` module) that writes
+//! the account-scoped cache on success (exit 0), serves a stale cache when
+//! the live API is unavailable (exit 4), and exits 3 with a typed error when
+//! neither the API nor a cache is available. `catalog get|list|export|diff`
+//! and `model inspect` are cache-first with a live fetch only when the cache
+//! is absent, and the bundled `FALLBACK_MODELS` as the final offline
+//! fallback.
 //!
 //! Security contract: the API token is only ever held by the core's
-//! `SecretString`; this binary never prints, logs, or serializes it. Doctor
-//! emits a redacted account id (`624acc…9f84` pattern, feedback 06) and
-//! exits 7 when the user config file contains an `api_token` VALUE (the
-//! config file may only name the env var holding the token - feedback 02).
+//! `SecretString` and flows exclusively into the `Authorization: Bearer ***
+//! header of the catalog GET; this binary never prints, logs, or serializes
+//! it. Doctor emits a redacted account id (`624acc…9f84` pattern, feedback
+//! 06) and exits 7 when the user config file contains an `api_token` VALUE
+//! (the config file may only name the env var holding the token - feedback
+//! 02).
 
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use auth_cloudflare::auth::{AuthProvider, ACCOUNT_ENV, TOKEN_ENV};
-use auth_cloudflare::cache::{cache_dir_for_account, cache_is_stale, read_catalog_cache, CatalogCacheMeta};
+use auth_cloudflare::cache::{
+	cache_dir_for_account, cache_is_stale, read_catalog_cache, write_catalog_cache, CatalogCacheMeta,
+};
 use auth_cloudflare::catalog::{ModelRecord, FALLBACK_MODELS};
+use auth_cloudflare::config::{Config, SecretString};
+use auth_cloudflare::error::CloudflareError;
+use auth_cloudflare::fetch::{fetch_catalog_from_api, FETCH_TIMEOUT};
 use auth_cloudflare::policy::ModelPolicy;
 use auth_cloudflare::schema::{VersionInfo, CATALOG_SCHEMA_VERSION};
 use auth_cloudflare::{DEFAULT_MODEL, VERSION};
 
-// Credential resolution: the core crate's lib.rs does not declare
-// `pub mod config`, so `config.rs` is not reachable through the library and
-// lib.rs edits are out of scope. The CLI therefore owns a TOKEN-FREE mirror
-// of config.rs's precedence chain (canonical AUTH_CLOUDFLARE_* → legacy
-// CLOUDFLARE_* aliases → config file): it resolves the account id and
-// detects token PRESENCE only - the token value never enters this binary at
-// all, which is strictly safer than the core's SecretString. Everything else
-// (cache paths, cache read/staleness, endpoint construction) uses the
-// library's exported API, so no core logic is duplicated.
+/// Live catalog fetcher - injectable for hermetic CLI tests (the production
+/// path is `fetch_catalog_from_api`; tests substitute a canned fetcher so no
+/// unit test ever touches the network).
+type FetchCatalog =
+	fn(account_id: &str, token: &SecretString, timeout: Duration) -> Result<serde_json::Value, CloudflareError>;
+
+// Credential resolution: the CLI resolves full credentials through the
+// core's `config.rs` (`Config::from_env`) only for the live-fetch commands
+// (`catalog refresh`, and the cache-miss live path of `catalog get|list|
+// export|inspect`); the token is held by `SecretString` and consumed only
+// by `fetch_catalog_from_api` for the Bearer header. The token-free
+// `ResolvedConfig` mirror below stays the source for everything that must
+// NOT see the token (doctor, cache paths, staleness).
 
 /// Exit code - command succeeded; health checks passed.
 const EXIT_OK: i32 = 0;
@@ -155,8 +167,14 @@ fn main() {
 ///
 /// JSON contract output goes to `out` (stdout); human diagnostics and usage
 /// go to `err` (stderr). This is the unit-testable entry point - it never
-/// calls `std::process::exit`.
+/// calls `std::process::exit`. The live fetcher is injectable (tests pass a
+/// canned fetcher; the binary uses `fetch_catalog_from_api`).
 fn run(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32 {
+	run_with_fetch(args, out, err, fetch_catalog_from_api)
+}
+
+/// [`run`] with an explicit fetcher - the test seam for hermetic CLI tests.
+fn run_with_fetch(args: &[String], out: &mut dyn Write, err: &mut dyn Write, fetch: FetchCatalog) -> i32 {
 	let (command, format) = match parse_args(args) {
 		Ok(parsed) => parsed,
 		Err(message) => {
@@ -174,7 +192,7 @@ fn run(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32 {
 			return EXIT_OPERATIONAL;
 		}
 	}
-	execute(command, out, err)
+	execute(command, out, err, fetch)
 }
 
 /// Parse args into a command. `--format <value>` / `--format=<value>` may
@@ -241,7 +259,7 @@ fn parse_export_format(value: &str) -> Result<ExportFormat, String> {
 }
 
 /// Dispatch a parsed command; returns the exit code.
-fn execute(command: Command, out: &mut dyn Write, err: &mut dyn Write) -> i32 {
+fn execute(command: Command, out: &mut dyn Write, err: &mut dyn Write, fetch: FetchCatalog) -> i32 {
 	match command {
 		Command::Help => {
 			let _ = writeln!(out, "{}", USAGE.replace("{version}", VERSION));
@@ -256,24 +274,24 @@ fn execute(command: Command, out: &mut dyn Write, err: &mut dyn Write) -> i32 {
 			emit_json(out, err, &value, code)
 		},
 		Command::CatalogGet => {
-			let (code, value) = catalog_get_json();
+			let (code, value) = catalog_get_json(fetch);
 			emit_json(out, err, &value, code)
 		},
 		Command::CatalogList => {
-			let (code, value) = catalog_list_json();
+			let (code, value) = catalog_list_json(fetch);
 			emit_json(out, err, &value, code)
 		},
 		Command::CatalogRefresh => {
-			let (code, value) = catalog_refresh_json();
+			let (code, value) = catalog_refresh_json(fetch, err);
 			emit_json(out, err, &value, code)
 		},
-		Command::CatalogExport { format } => catalog_export(format, out, err),
+		Command::CatalogExport { format } => catalog_export(format, fetch, out, err),
 		Command::CatalogDiff => {
 			let (code, value) = catalog_diff_json();
 			emit_json(out, err, &value, code)
 		},
 		Command::ModelInspect { model_id } => {
-			let (code, value) = model_inspect_json(&model_id);
+			let (code, value) = model_inspect_json(fetch, &model_id);
 			emit_json(out, err, &value, code)
 		},
 		Command::PolicyGet => {
@@ -532,39 +550,35 @@ fn cache_age_seconds(meta: &CatalogCacheMeta) -> u64 {
 /// Resolved catalog data - one source of truth for `catalog get|list|export`
 /// and `model inspect`.
 struct ResolvedCatalog {
-	/// `cache` when served from the account cache, `fallback` otherwise.
+	/// `live` | `cache` | `fallback` - where the records came from.
 	source: &'static str,
 	/// `fresh` | `stale` | `none` (feedback 06 `cache_status`).
 	cache_status: &'static str,
-	/// RFC 3339 timestamp: the cache's `fetched_at`, or now for fallback.
+	/// RFC 3339 timestamp: the cache's `fetched_at`, fetch time for live, or
+	/// now for fallback.
 	fetched_at: String,
 	/// Normalized model records.
 	records: Vec<ModelRecord>,
 }
 
-/// Resolve the catalog cache-first; fall back to the bundled
-/// `FALLBACK_MODELS` whenever the cache is absent, unreadable, or unusable.
-/// Never panics, never touches the network (v0.0.1).
-fn resolve_catalog_data() -> ResolvedCatalog {
+/// Resolve the catalog: cache-first, live fetch when the cache is absent,
+/// bundled `FALLBACK_MODELS` last. Never panics; the live fetch is skipped
+/// whenever credentials do not resolve (fallback).
+fn resolve_catalog_data(fetch: FetchCatalog) -> ResolvedCatalog {
 	let resolved_config = resolve_config();
 	// The cache dir is only meaningful with a valid account id (the derived
 	// default is account-scoped); an override without credentials is not
 	// trusted for catalog reads.
 	let cache_dir = resolved_config.cache_dir.filter(|_| resolved_config.account_id.is_some());
 
-	let mut resolved = ResolvedCatalog {
-		source: "fallback",
-		cache_status: "none",
-		fetched_at: chrono::Utc::now().to_rfc3339(),
-		records: Vec::new(),
-	};
-
-	if let Some(dir) = cache_dir {
-		if let Ok(Some((meta, payload))) = read_catalog_cache(&dir) {
+	// 1. Cache present and usable -> serve it (fresh or stale, exit code
+	//    decided by the caller).
+	if let Some(dir) = &cache_dir {
+		if let Ok(Some((meta, payload))) = read_catalog_cache(dir) {
 			let records = records_from_payload(&payload);
 			if !records.is_empty() {
 				let stale = cache_is_stale(&meta, CACHE_MAX_AGE);
-				resolved = ResolvedCatalog {
+				return ResolvedCatalog {
 					source: "cache",
 					cache_status: if stale { "stale" } else { "fresh" },
 					fetched_at: meta.fetched_at,
@@ -574,10 +588,43 @@ fn resolve_catalog_data() -> ResolvedCatalog {
 		}
 	}
 
-	if resolved.records.is_empty() {
-		resolved.records = fallback_records();
+	// 2. No usable cache -> live fetch when full credentials resolve.
+	if let Some((account_id, token)) = live_credentials() {
+		if let Ok(payload) = fetch(&account_id, &token, FETCH_TIMEOUT) {
+			let records = records_from_payload(&payload);
+			if !records.is_empty() {
+				let fetched_at = chrono::Utc::now().to_rfc3339();
+				if let Some(dir) = &cache_dir {
+					let meta = CatalogCacheMeta {
+						schema_version: CATALOG_SCHEMA_VERSION,
+						fetched_at: fetched_at.clone(),
+						source: "cloudflare-workers-ai".to_string(),
+						model_count: records.len(),
+						account_fingerprint: AuthProvider::new(&account_id).cache_slug(),
+					};
+					// Best-effort: a cache write failure must not fail the
+					// command - the live data is still served this run.
+					let _ = write_catalog_cache(dir, &meta, &payload);
+				}
+				return ResolvedCatalog { source: "live", cache_status: "fresh", fetched_at, records };
+			}
+		}
 	}
-	resolved
+
+	// 3. Final offline fallback (source "fallback", cache_status "none").
+	ResolvedCatalog {
+		source: "fallback",
+		cache_status: "none",
+		fetched_at: chrono::Utc::now().to_rfc3339(),
+		records: fallback_records(),
+	}
+}
+
+/// Resolve full live-fetch credentials (validated account id + token) via
+/// the core's `Config`; `None` when they do not resolve.
+fn live_credentials() -> Option<(String, SecretString)> {
+	let config = Config::from_env().ok()?;
+	Some((config.account_id().to_string(), config.api_token().clone()))
 }
 
 /// Normalize an OpenRouter-format payload into model records.
@@ -634,10 +681,10 @@ fn display_name_from_id(id: &str) -> String {
 		.join(" ")
 }
 
-/// The feedback-06 per-model object shared by `catalog get` and
-/// `model inspect`: id, display_name, status, primary_agent_eligible,
-/// context_tokens, pricing_per_million {input, cached_input, output},
-/// capabilities {chat, tools, reasoning}.
+/// The feedback-06 per-model object shared by `catalog get`, `catalog
+/// refresh`, and `model inspect`: id, display_name, status,
+/// primary_agent_eligible, context_tokens, pricing_per_million {input,
+/// cached_input, output}, capabilities {chat, tools, reasoning}.
 fn model_json(record: &ModelRecord, policy: &ModelPolicy) -> serde_json::Value {
 	serde_json::json!({
 		"id": record.id,
@@ -658,35 +705,51 @@ fn model_json(record: &ModelRecord, policy: &ModelPolicy) -> serde_json::Value {
 	})
 }
 
+/// The feedback-06 catalog envelope: schema_version, source, fetched_at,
+/// cache_status, default_model, models. Used by `catalog get` (provenance
+/// source `live`|`cache`|`fallback`) and `catalog refresh` (source
+/// `cloudflare-workers-ai` - the catalog origin).
+fn catalog_document(
+	source: &str,
+	cache_status: &str,
+	fetched_at: String,
+	records: &[ModelRecord],
+) -> serde_json::Value {
+	let policy = ModelPolicy::default_policy();
+	let models: Vec<serde_json::Value> = records.iter().map(|record| model_json(record, &policy)).collect();
+	serde_json::json!({
+		"schema_version": CATALOG_SCHEMA_VERSION,
+		"source": source,
+		"fetched_at": fetched_at,
+		"cache_status": cache_status,
+		"default_model": DEFAULT_MODEL,
+		"models": models,
+	})
+}
+
 // ---------------------------------------------------------------------------
 // catalog get / list / refresh / diff / export, model inspect, policy get
 // ---------------------------------------------------------------------------
 
-/// Feedback-06 `catalog get` envelope. Exit 0 fresh/fallback, exit 4 when
-/// the cache is stale (live API unavailable, stale cache successfully used).
-fn catalog_get_json() -> (i32, serde_json::Value) {
-	let resolved = resolve_catalog_data();
-	let policy = ModelPolicy::default_policy();
-	let models: Vec<serde_json::Value> = resolved.records.iter().map(|record| model_json(record, &policy)).collect();
+/// Feedback-06 `catalog get` envelope. Cache-first: exit 0 fresh/live/
+/// fallback, exit 4 when the cache is stale (live API unavailable, stale
+/// cache successfully used). A live fetch is attempted only when no usable
+/// cache exists; on live failure the bundled fallback is served (exit 0,
+/// cache_status "none").
+fn catalog_get_json(fetch: FetchCatalog) -> (i32, serde_json::Value) {
+	let resolved = resolve_catalog_data(fetch);
 	let exit = match resolved.cache_status {
 		"stale" => EXIT_STALE_CACHE,
 		_ => EXIT_OK,
 	};
-	let value = serde_json::json!({
-		"schema_version": CATALOG_SCHEMA_VERSION,
-		"source": resolved.source,
-		"fetched_at": resolved.fetched_at,
-		"cache_status": resolved.cache_status,
-		"default_model": DEFAULT_MODEL,
-		"models": models,
-	});
+	let value = catalog_document(resolved.source, resolved.cache_status, resolved.fetched_at, &resolved.records);
 	(exit, value)
 }
 
 /// `catalog list` - the same resolution as `catalog get`, but models is an
 /// ordered list of model ids (picker order).
-fn catalog_list_json() -> (i32, serde_json::Value) {
-	let resolved = resolve_catalog_data();
+fn catalog_list_json(fetch: FetchCatalog) -> (i32, serde_json::Value) {
+	let resolved = resolve_catalog_data(fetch);
 	let models: Vec<String> = resolved.records.iter().map(|record| record.id.clone()).collect();
 	let exit = match resolved.cache_status {
 		"stale" => EXIT_STALE_CACHE,
@@ -702,16 +765,84 @@ fn catalog_list_json() -> (i32, serde_json::Value) {
 	(exit, value)
 }
 
-/// `catalog refresh` - live fetch is NOT wired in v0.0.1 (no TLS-capable
-/// HTTP client in the std-only dependency set). Exits 3 with an actionable
-/// message; the plugin should fall back to `catalog get` (cache/fallback).
-fn catalog_refresh_json() -> (i32, serde_json::Value) {
-	let message = "live catalog fetch is not yet wired in v0.0.1: the workspace has no TLS-capable HTTP client (std::net has no TLS). Use 'catalog get' for cache/fallback output, or add reqwest/ureq to the workspace and wire the /ai/models/search GET in a later task.";
+/// `catalog refresh` - live-first: typed `/ai/models/search` GET, cache
+/// written on success (exit 0). On remote failure: serve a stale cache with
+/// exit 4 (a fresh cache is still served with exit 0 - it is not stale), or
+/// exit 3 with a typed error JSON when no cache exists.
+fn catalog_refresh_json(fetch: FetchCatalog, err: &mut dyn Write) -> (i32, serde_json::Value) {
+	let config = match Config::from_env() {
+		Ok(config) => config,
+		Err(error) => {
+			return (
+				EXIT_CREDENTIALS,
+				serde_json::json!({
+					"status": "error",
+					"error": error.to_string(),
+					"exit_code": EXIT_CREDENTIALS,
+				}),
+			);
+		},
+	};
+	let account_id = config.account_id().to_string();
+	let cache_dir = config.cache_dir();
+
+	match fetch(&account_id, config.api_token(), FETCH_TIMEOUT) {
+		Ok(payload) => {
+			let records = records_from_payload(&payload);
+			if records.is_empty() {
+				// A live payload with no usable records is a remote failure
+				// (invalid model payload - feedback 01 taxonomy).
+				return refresh_failure(&CloudflareError::NoDataArray, &cache_dir, err);
+			}
+			let fetched_at = chrono::Utc::now().to_rfc3339();
+			let meta = CatalogCacheMeta {
+				schema_version: CATALOG_SCHEMA_VERSION,
+				fetched_at: fetched_at.clone(),
+				source: "cloudflare-workers-ai".to_string(),
+				model_count: records.len(),
+				account_fingerprint: AuthProvider::new(&account_id).cache_slug(),
+			};
+			if let Err(write_error) = write_catalog_cache(&cache_dir, &meta, &payload) {
+				let _ = writeln!(
+					err,
+					"auth-cloudflare: warning: catalog refreshed but cache write failed: {write_error}"
+				);
+			}
+			(
+				EXIT_OK,
+				catalog_document("cloudflare-workers-ai", "fresh", fetched_at, &records),
+			)
+		},
+		Err(error) => refresh_failure(&error, &cache_dir, err),
+	}
+}
+
+/// Shared refresh failure path: serve the account cache when one exists
+/// (exit 4 when stale - "stale cache successfully used", feedback 02 exit
+/// table; exit 0 when the cache is still fresh), else exit 3 with the typed
+/// error JSON.
+fn refresh_failure(error: &CloudflareError, cache_dir: &Path, err: &mut dyn Write) -> (i32, serde_json::Value) {
+	if let Ok(Some((meta, payload))) = read_catalog_cache(cache_dir) {
+		let records = records_from_payload(&payload);
+		if !records.is_empty() {
+			let stale = cache_is_stale(&meta, CACHE_MAX_AGE);
+			let cache_status = if stale { "stale" } else { "fresh" };
+			let exit = if stale { EXIT_STALE_CACHE } else { EXIT_OK };
+			let _ = writeln!(
+				err,
+				"auth-cloudflare: live catalog fetch failed ({error}); serving {cache_status} cache (exit {exit})"
+			);
+			return (
+				exit,
+				catalog_document("cloudflare-workers-ai", cache_status, meta.fetched_at, &records),
+			);
+		}
+	}
 	(
 		EXIT_REMOTE_API,
 		serde_json::json!({
 			"status": "error",
-			"error": message,
+			"error": error.to_string(),
 			"exit_code": EXIT_REMOTE_API,
 		}),
 	)
@@ -739,7 +870,7 @@ fn catalog_diff_json() -> (i32, serde_json::Value) {
 				EXIT_OPERATIONAL,
 				serde_json::json!({
 					"status": "error",
-					"error": "no catalog cache present to diff against; run 'catalog refresh' once a live fetch is wired (v0.0.1: refresh is not wired) or seed the cache via the library",
+					"error": "no catalog cache present to diff against; run 'catalog refresh' to seed the cache",
 					"exit_code": EXIT_OPERATIONAL,
 				}),
 			);
@@ -785,12 +916,12 @@ fn catalog_diff_json() -> (i32, serde_json::Value) {
 }
 
 /// `catalog export yaml|markdown` - derive generated docs from the same
-/// cache/fallback records (feedback 01: generated docs must derive from the
-/// canonical catalog, never be hand-maintained duplicates). Writes
+/// cache/live/fallback records (feedback 01: generated docs must derive from
+/// the canonical catalog, never be hand-maintained duplicates). Writes
 /// `catalog.generated.yaml` / `catalog.generated.md` into the export dir
 /// (`AUTH_CLOUDFLARE_EXPORT_DIR`, default cwd).
-fn catalog_export(format: ExportFormat, out: &mut dyn Write, err: &mut dyn Write) -> i32 {
-	let resolved = resolve_catalog_data();
+fn catalog_export(format: ExportFormat, fetch: FetchCatalog, out: &mut dyn Write, err: &mut dyn Write) -> i32 {
+	let resolved = resolve_catalog_data(fetch);
 	let policy = ModelPolicy::default_policy();
 	let export_dir = std::env::var(EXPORT_DIR_ENV)
 		.ok()
@@ -825,8 +956,8 @@ fn catalog_export(format: ExportFormat, out: &mut dyn Write, err: &mut dyn Write
 
 /// `model inspect <id>` - the feedback-06 per-model object plus its source.
 /// Exit 5 when the id is not in the catalog (feedback 02: no eligible model).
-fn model_inspect_json(model_id: &str) -> (i32, serde_json::Value) {
-	let resolved = resolve_catalog_data();
+fn model_inspect_json(fetch: FetchCatalog, model_id: &str) -> (i32, serde_json::Value) {
+	let resolved = resolve_catalog_data(fetch);
 	let policy = ModelPolicy::default_policy();
 	let Some(record) = resolved.records.iter().find(|record| record.id == model_id) else {
 		return (
@@ -1033,6 +1164,53 @@ mod tests {
 		let mut err: Vec<u8> = Vec::new();
 		let code = run(&owned, &mut out, &mut err);
 		(code, String::from_utf8_lossy(&out).to_string())
+	}
+
+	/// Run the CLI with an injected fetcher (hermetic live-fetch tests).
+	fn run_json_with_fetch(args: &[&str], fetch: FetchCatalog) -> (i32, serde_json::Value) {
+		let owned: Vec<String> = args.iter().map(|arg| (*arg).to_string()).collect();
+		let mut out: Vec<u8> = Vec::new();
+		let mut err: Vec<u8> = Vec::new();
+		let code = run_with_fetch(&owned, &mut out, &mut err, fetch);
+		let value = serde_json::from_slice(&out).unwrap_or_else(|_| serde_json::json!({}));
+		(code, value)
+	}
+
+	/// Run the CLI with an injected fetcher, returning raw stdout.
+	fn run_raw_with_fetch(args: &[&str], fetch: FetchCatalog) -> (i32, String) {
+		let owned: Vec<String> = args.iter().map(|arg| (*arg).to_string()).collect();
+		let mut out: Vec<u8> = Vec::new();
+		let mut err: Vec<u8> = Vec::new();
+		let code = run_with_fetch(&owned, &mut out, &mut err, fetch);
+		(code, String::from_utf8_lossy(&out).to_string())
+	}
+
+	/// Canned successful fetcher: a small OpenRouter-format live payload.
+	fn fetch_ok(
+		_account_id: &str,
+		_token: &SecretString,
+		_timeout: Duration,
+	) -> Result<serde_json::Value, CloudflareError> {
+		Ok(serde_json::json!({
+			"data": [
+				{
+					"id": DEFAULT_MODEL,
+					"name": "DeepSeek V4 Flash 0731",
+					"context_length": 1_310_720,
+					"pricing": { "prompt": "0.00000044", "completion": "0.00000132" },
+				},
+				{ "id": "@cf/moonshotai/kimi-k2.7-code", "name": "Kimi K2.7 Code" },
+			]
+		}))
+	}
+
+	/// Canned failing fetcher: a transport-style remote failure.
+	fn fetch_err(
+		_account_id: &str,
+		_token: &SecretString,
+		_timeout: Duration,
+	) -> Result<serde_json::Value, CloudflareError> {
+		Err(CloudflareError::Http("simulated network failure".to_string()))
 	}
 
 	/// Seed the account-scoped cache for the synthetic account/token env.
@@ -1361,18 +1539,205 @@ mod tests {
 	}
 
 	// ------------------------------------------------------------------
-	// catalog refresh / diff / export
+	// catalog refresh (live-first: fetch, cache write, stale/typed fallback)
 	// ------------------------------------------------------------------
 
 	#[test]
-	fn refresh_is_not_wired_exits_3() {
+	fn refresh_missing_creds_exits_2() {
 		with_env(&[], || {
-			let (code, value) = run_json(&["catalog", "refresh", "--format", "json"]);
-			assert_eq!(code, EXIT_REMOTE_API);
+			let (code, value) = run_json_with_fetch(&["catalog", "refresh", "--format", "json"], fetch_ok);
+			assert_eq!(code, EXIT_CREDENTIALS);
 			assert_eq!(value["status"], "error");
-			assert!(value["error"].as_str().expect("error string").contains("not yet wired"));
-			assert_eq!(value["exit_code"], EXIT_REMOTE_API);
+			assert_eq!(value["exit_code"], EXIT_CREDENTIALS);
+			assert!(
+				value["error"]
+					.as_str()
+					.expect("error string")
+					.contains("AUTH_CLOUDFLARE_ACCOUNT_ID"),
+				"missing-cred error names the exact env var"
+			);
 		});
+	}
+
+	#[test]
+	fn refresh_live_success_exits_0_and_writes_cache() {
+		let home = scratch_dir("refresh-live-ok");
+		let _ = std::fs::remove_dir_all(&home);
+		with_env(
+			&[
+				(ACCOUNT_ENV, Some(ACCOUNT)),
+				(TOKEN_ENV, Some(TOKEN)),
+				("HERMES_HOME", Some(home.to_str().unwrap())),
+			],
+			|| {
+				let (code, value) = run_json_with_fetch(&["catalog", "refresh", "--format", "json"], fetch_ok);
+				assert_eq!(code, EXIT_OK);
+				assert_eq!(value["schema_version"], 1);
+				assert_eq!(value["source"], "cloudflare-workers-ai");
+				assert_eq!(value["cache_status"], "fresh");
+				assert_eq!(value["default_model"], DEFAULT_MODEL);
+				let models = value["models"].as_array().expect("models array");
+				assert_eq!(models.len(), 2);
+				assert_eq!(models[0]["id"], DEFAULT_MODEL);
+				assert_eq!(models[0]["status"], "recommended");
+				assert_eq!(models[0]["pricing_per_million"]["input"], 0.44);
+				assert_eq!(models[0]["capabilities"]["tools"], "confirmed");
+				// The account cache was written with live provenance.
+				let dir = cache_dir_for_account(&AuthProvider::new(ACCOUNT));
+				let (meta, payload) = read_catalog_cache(&dir).expect("read cache").expect("cache written");
+				assert_eq!(meta.source, "cloudflare-workers-ai");
+				assert_eq!(meta.model_count, 2);
+				assert_eq!(meta.account_fingerprint, AuthProvider::new(ACCOUNT).cache_slug());
+				assert_eq!(payload["data"][0]["id"], DEFAULT_MODEL);
+				// The token never appears in refresh stdout.
+				let (_, raw) = run_raw_with_fetch(&["catalog", "refresh", "--format", "json"], fetch_ok);
+				assert!(!raw.contains(TOKEN), "refresh output must never contain the token: {raw}");
+			},
+		);
+		let _ = std::fs::remove_dir_all(&home);
+	}
+
+	#[test]
+	fn refresh_remote_failure_no_cache_exits_3() {
+		let home = scratch_dir("refresh-fail-nocache");
+		let _ = std::fs::remove_dir_all(&home);
+		with_env(
+			&[
+				(ACCOUNT_ENV, Some(ACCOUNT)),
+				(TOKEN_ENV, Some(TOKEN)),
+				("HERMES_HOME", Some(home.to_str().unwrap())),
+			],
+			|| {
+				let (code, value) = run_json_with_fetch(&["catalog", "refresh", "--format", "json"], fetch_err);
+				assert_eq!(code, EXIT_REMOTE_API);
+				assert_eq!(value["status"], "error");
+				assert!(
+					value["error"]
+						.as_str()
+						.expect("error string")
+						.contains("simulated network failure")
+				);
+				assert_eq!(value["exit_code"], EXIT_REMOTE_API);
+				let (_, raw) = run_raw_with_fetch(&["catalog", "refresh", "--format", "json"], fetch_err);
+				assert!(!raw.contains(TOKEN), "error output must never contain the token: {raw}");
+			},
+		);
+		let _ = std::fs::remove_dir_all(&home);
+	}
+
+	#[test]
+	fn refresh_remote_failure_stale_cache_exits_4() {
+		let home = scratch_dir("refresh-fail-stale");
+		let _ = std::fs::remove_dir_all(&home);
+		with_env(
+			&[
+				(ACCOUNT_ENV, Some(ACCOUNT)),
+				(TOKEN_ENV, Some(TOKEN)),
+				("HERMES_HOME", Some(home.to_str().unwrap())),
+			],
+			|| {
+				seed_cache("2016-01-01T00:00:00Z", &[DEFAULT_MODEL]);
+				let (code, value) = run_json_with_fetch(&["catalog", "refresh", "--format", "json"], fetch_err);
+				assert_eq!(code, EXIT_STALE_CACHE);
+				assert_eq!(value["source"], "cloudflare-workers-ai");
+				assert_eq!(value["cache_status"], "stale");
+				assert_eq!(value["models"][0]["id"], DEFAULT_MODEL, "stale cache is still served");
+			},
+		);
+		let _ = std::fs::remove_dir_all(&home);
+	}
+
+	#[test]
+	fn refresh_remote_failure_fresh_cache_still_exits_0() {
+		let home = scratch_dir("refresh-fail-fresh");
+		let _ = std::fs::remove_dir_all(&home);
+		with_env(
+			&[
+				(ACCOUNT_ENV, Some(ACCOUNT)),
+				(TOKEN_ENV, Some(TOKEN)),
+				("HERMES_HOME", Some(home.to_str().unwrap())),
+			],
+			|| {
+				seed_cache(&chrono::Utc::now().to_rfc3339(), &[DEFAULT_MODEL]);
+				let (code, value) = run_json_with_fetch(&["catalog", "refresh", "--format", "json"], fetch_err);
+				assert_eq!(code, EXIT_OK, "a still-fresh cache is served, not discarded");
+				assert_eq!(value["cache_status"], "fresh");
+			},
+		);
+		let _ = std::fs::remove_dir_all(&home);
+	}
+
+	// ------------------------------------------------------------------
+	// catalog get live-fetch path (cache absent -> live -> fallback)
+	// ------------------------------------------------------------------
+
+	#[test]
+	fn catalog_get_live_fetch_on_cache_miss() {
+		let home = scratch_dir("get-live");
+		let _ = std::fs::remove_dir_all(&home);
+		with_env(
+			&[
+				(ACCOUNT_ENV, Some(ACCOUNT)),
+				(TOKEN_ENV, Some(TOKEN)),
+				("HERMES_HOME", Some(home.to_str().unwrap())),
+			],
+			|| {
+				let (code, value) = run_json_with_fetch(&["catalog", "get", "--format", "json"], fetch_ok);
+				assert_eq!(code, EXIT_OK);
+				assert_eq!(value["source"], "live");
+				assert_eq!(value["cache_status"], "fresh");
+				assert_eq!(value["models"][0]["id"], DEFAULT_MODEL);
+				// The live result was cached for next time.
+				let dir = cache_dir_for_account(&AuthProvider::new(ACCOUNT));
+				assert!(
+					read_catalog_cache(&dir).expect("read cache").is_some(),
+					"live get seeds the cache"
+				);
+			},
+		);
+		let _ = std::fs::remove_dir_all(&home);
+	}
+
+	#[test]
+	fn catalog_get_live_failure_falls_back_to_bundled() {
+		let home = scratch_dir("get-live-fail");
+		let _ = std::fs::remove_dir_all(&home);
+		with_env(
+			&[
+				(ACCOUNT_ENV, Some(ACCOUNT)),
+				(TOKEN_ENV, Some(TOKEN)),
+				("HERMES_HOME", Some(home.to_str().unwrap())),
+			],
+			|| {
+				let (code, value) = run_json_with_fetch(&["catalog", "get", "--format", "json"], fetch_err);
+				assert_eq!(code, EXIT_OK, "live failure without cache falls back with exit 0");
+				assert_eq!(value["source"], "fallback");
+				assert_eq!(value["cache_status"], "none");
+				assert_eq!(value["models"][0]["id"], DEFAULT_MODEL);
+			},
+		);
+		let _ = std::fs::remove_dir_all(&home);
+	}
+
+	#[test]
+	fn catalog_list_live_fetch_on_cache_miss() {
+		let home = scratch_dir("list-live");
+		let _ = std::fs::remove_dir_all(&home);
+		with_env(
+			&[
+				(ACCOUNT_ENV, Some(ACCOUNT)),
+				(TOKEN_ENV, Some(TOKEN)),
+				("HERMES_HOME", Some(home.to_str().unwrap())),
+			],
+			|| {
+				let (code, value) = run_json_with_fetch(&["catalog", "list", "--format", "json"], fetch_ok);
+				assert_eq!(code, EXIT_OK);
+				assert_eq!(value["source"], "live");
+				let models = value["models"].as_array().expect("models array");
+				assert_eq!(models[0], DEFAULT_MODEL);
+			},
+		);
+		let _ = std::fs::remove_dir_all(&home);
 	}
 
 	#[test]
@@ -1419,6 +1784,8 @@ mod tests {
 				(EXPORT_DIR_ENV, Some(home.to_str().unwrap())),
 			],
 			|| {
+				// Seed a fresh cache so the export stays hermetic (no live fetch).
+				seed_cache(&chrono::Utc::now().to_rfc3339(), &[DEFAULT_MODEL]);
 				let (code, message) = run_raw(&["catalog", "export", "yaml"]);
 				assert_eq!(code, EXIT_OK, "yaml export: {message}");
 				let yaml = std::fs::read_to_string(home.join("catalog.generated.yaml")).expect("yaml file");
