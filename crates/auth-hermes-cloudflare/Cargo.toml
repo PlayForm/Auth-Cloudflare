@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "auth-hermes-cloudflare: Hermes Agent-specific integration for the Cloudflare Workers AI auth provider - tool schemas, hook dispatch, skill registration"
+description = "auth-hermes-cloudflare: Hermes Agent-specific integration for the Cloudflare AI auth provider - tool schemas, hook dispatch, skill registration"
 
 [lib]
 crate-type = ["cdylib", "rlib"]

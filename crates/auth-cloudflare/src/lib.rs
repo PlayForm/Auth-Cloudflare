@@ -1,6 +1,6 @@
-//! auth-cloudflare - Cloudflare Workers AI auth provider core.
+//! auth-cloudflare - Cloudflare AI auth provider core.
 //!
-//! Account/token resolution, Workers AI endpoint construction, model catalog
+//! Account/token resolution, Cloudflare AI endpoint construction, model catalog
 //! normalization types, and account-scoped cache path helpers. The Hermes
 //! integration crate (`auth-hermes-cloudflare`) and the Python plugin both
 //! build on this crate so the endpoint/auth logic has exactly one source of
@@ -20,5 +20,5 @@ pub use error::CloudflareError;
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Default inference model - the cheapest strong coding/tool default on
-/// Workers AI (GLM-5.3 Flash: 1.31M context, function calling, $0.15/M in).
+/// Cloudflare AI (GLM-5.3 Flash: 1.31M context, function calling, $0.15/M in).
 pub const DEFAULT_MODEL: &str = "@cf/zai-org/glm-5.3-flash";

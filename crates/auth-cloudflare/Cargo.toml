@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "auth-cloudflare: Cloudflare Workers AI auth provider core - account/token resolution, model catalog types, cache paths."
+description = "auth-cloudflare: Cloudflare AI auth provider core - account/token resolution, model catalog types, cache paths."
 
 [lib]
 crate-type = ["cdylib", "rlib"]

@@ -1,15 +1,15 @@
-# Cloudflare - Cloudflare Workers AI auth provider for Hermes Agent
+# Cloudflare - Cloudflare AI auth provider for Hermes Agent
 
 > PlayForm/Cloudflare - a Hermes model-provider plugin that adds **Cloudflare
-> Workers AI** as a first-class authentication provider. No manual
+> Cloudflare AI** as a first-class authentication provider. No manual
 > `custom_providers` wiring, no bash URL adaptation: install the plugin, export
-> two environment variables, and `hermes model` offers every Workers AI model
+> two environment variables, and `hermes model` offers every Cloudflare AI model
 > your account can invoke.
 
 ## Why
 
 Hermes discovers custom-provider catalogs at the OpenAI-standard `GET …/models`.
-Cloudflare's Workers AI surface instead exposes:
+Cloudflare's Cloudflare AI surface instead exposes:
 
 | Route | Purpose |
 | :--- | :--- |
@@ -39,15 +39,15 @@ ln -s "$(pwd)/plugins/cloudflare" ~/.hermes/plugins/cloudflare
 
 ```sh
 export CLOUDFLARE_ACCOUNT_ID="<your account id>"   # Workers & Pages → Overview
-export CLOUDFLARE_API_TOKEN="<scoped token>"       # Account → Workers AI → Edit
+export CLOUDFLARE_API_TOKEN="<scoped token>"       # Account → Cloudflare AI → Edit
 hermes gateway restart
-hermes model                                       # pick: Cloudflare Workers AI
+hermes model                                       # pick: Cloudflare AI
 ```
 
 > [!NOTE]
 >
 > The account ID is operational metadata, not a secret. The API token **is** a
-> secret - scope it to **Account → Workers AI → Edit** and nothing else.
+> secret - scope it to **Account → Cloudflare AI → Edit** and nothing else.
 
 ## Default model
 

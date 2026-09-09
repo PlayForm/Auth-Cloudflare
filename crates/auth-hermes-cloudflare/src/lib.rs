@@ -1,5 +1,5 @@
 //! auth-hermes-cloudflare - Hermes Agent-specific integration for the
-//! Cloudflare Workers AI auth provider.
+//! Cloudflare AI auth provider.
 //!
 //! Python-side plugin logic lives in `plugins/auth-hermes-cloudflare/__init__.py`
 //! (mirroring the Aphrodite plugin architecture). This crate re-exports the

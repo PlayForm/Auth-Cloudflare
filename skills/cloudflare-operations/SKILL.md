@@ -1,6 +1,6 @@
 ---
 name: cloudflare-operations
-description: "Operational patterns for the Cloudflare Workers AI provider - engine, endpoints, catalog refresh, troubleshooting."
+description: "Operational patterns for the Cloudflare AI provider - engine, endpoints, catalog refresh, troubleshooting."
 version: 0.0.1
 author: PlayForm
 license: CC0-1.0
@@ -10,10 +10,10 @@ metadata:
     tags: [cloudflare, workers-ai, provider, hermes-plugin, catalog]
 ---
 
-# Cloudflare Workers AI - Operations
+# Cloudflare AI - Operations
 
 Provider plugin operations for the PlayForm/Cloudflare Hermes plugin. The
-plugin registers the `cloudflare` provider (aliases: `cloudflare-workers-ai`,
+plugin registers the `cloudflare` provider (aliases: `cloudflare-ai`,
 `workers-ai`, `cf`).
 
 ## Endpoints (the plugin owns this routing)
@@ -29,7 +29,7 @@ plugin registers the `cloudflare` provider (aliases: `cloudflare-workers-ai`,
 
 ```sh
 export CLOUDFLARE_ACCOUNT_ID="<account id>"   # Workers & Pages → Overview
-export CLOUDFLARE_API_TOKEN="<token>"         # Account → Workers AI → Edit
+export CLOUDFLARE_API_TOKEN="<token>"         # Account → Cloudflare AI → Edit
 ```
 
 The account ID is not a secret; the token is. Never paste a `cfut_…` token
@@ -52,7 +52,7 @@ prefixes in staged diffs.
 | :--- | :--- | :--- |
 | `hermes model` shows no Cloudflare models | `CLOUDFLARE_API_TOKEN` unset | Export the token; restart gateway |
 | Catalog returns error 7003 | `CLOUDFLARE_ACCOUNT_ID` unset/empty → malformed URL | Export the account ID |
-| HTTP 403 on inference | Token lacks Workers AI Write | Re-scope the token |
+| HTTP 403 on inference | Token lacks Cloudflare AI Write | Re-scope the token |
 | HTTP 401 | Token expired/revoked | Roll the token |
 | Model not in picker | Non-chat or safety model | Filtered by design; use chat models |
 | `.../ai/v1/models` 404 in logs | Hermes default probe | Expected - plugin sets `supports_health_check=False` |
@@ -61,7 +61,7 @@ prefixes in staged diffs.
 
 ```sh
 # One-shot through the registered provider
-hermes chat -q "Reply with exactly: Workers AI connection confirmed."
+hermes chat -q "Reply with exactly: Cloudflare AI connection confirmed."
 
 # Direct endpoint probe (token from env, never echoed)
 curl -sS "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/ai/v1/chat/completions" \
