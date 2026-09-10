@@ -142,6 +142,16 @@ impl ModelPolicy {
 					cost_tier: None,
 				},
 				PolicyEntry {
+					model_id: "@cf/zai-org/glm-5.3".to_string(),
+					status: ModelStatus::Experimental,
+					rank: 910,
+					default: false,
+					primary_agent_eligible: true,
+					roles: vec![ModelRole::CodingAgent],
+					reason: "Delivery conformance not validated".to_string(),
+					cost_tier: None,
+				},
+				PolicyEntry {
 					model_id: "@cf/meta/llama-guard-3-8b".to_string(),
 					status: ModelStatus::Hidden,
 					rank: 1000,
@@ -369,6 +379,17 @@ mod tests {
 		assert!(!glm.default);
 		assert_eq!(glm.reason, "Observed delivery failures; requires passing conformance suite.");
 
+		let glm_53 = policy
+			.models
+			.iter()
+			.find(|entry| entry.model_id == "@cf/zai-org/glm-5.3")
+			.expect("glm-5.3 entry present");
+		assert_eq!(glm_53.status, ModelStatus::Experimental);
+		assert_eq!(glm_53.rank, 910);
+		assert!(!glm_53.default);
+		assert!(glm_53.primary_agent_eligible);
+		assert_eq!(glm_53.reason, "Delivery conformance not validated");
+
 		let guard = policy
 			.models
 			.iter()
@@ -413,7 +434,8 @@ mod tests {
 		assert_eq!(value["version"], "1");
 		assert_eq!(value["models"][0]["status"], "recommended");
 		assert_eq!(value["models"][5]["status"], "experimental");
-		assert_eq!(value["models"][6]["status"], "hidden");
+		assert_eq!(value["models"][6]["status"], "experimental");
+		assert_eq!(value["models"][7]["status"], "hidden");
 	}
 }
 

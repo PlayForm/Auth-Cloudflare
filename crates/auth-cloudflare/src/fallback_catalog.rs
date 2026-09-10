@@ -10,7 +10,7 @@ pub fn fallback_models() -> Vec<&'static str> {
 	crate::catalog::FALLBACK_MODELS.to_vec()
 }
 
-/// Models marked experimental by project policy (GLM-5.3 Flash).
+/// Models marked experimental by project policy (GLM-5.3 Flash and GLM-5.3).
 pub fn experimental_models() -> Vec<&'static str> {
 	crate::catalog::EXPERIMENTAL_MODELS.to_vec()
 }
@@ -34,8 +34,8 @@ mod tests {
 	}
 
 	#[test]
-	fn experimental_models_is_glm_flash() {
-		assert_eq!(experimental_models(), vec!["@cf/zai-org/glm-5.3-flash"]);
+	fn experimental_models_covers_glm_family() {
+		assert_eq!(experimental_models(), vec!["@cf/zai-org/glm-5.3-flash", "@cf/zai-org/glm-5.3"]);
 	}
 
 	#[test]

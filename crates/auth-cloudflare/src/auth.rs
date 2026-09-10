@@ -56,7 +56,7 @@ impl AccountCredentials {
 			return Err(CloudflareError::MissingEnv {
 				env_var: TOKEN_ENV,
 				hint: format!(
-					"export {TOKEN_ENV}=<scoped api token> - create a custom token with Account → Workers AI → Edit"
+					"export {TOKEN_ENV}=<scoped api token> - create a custom token with Account → Workers AI → Write (some dashboards label it Edit)"
 				),
 			});
 		}

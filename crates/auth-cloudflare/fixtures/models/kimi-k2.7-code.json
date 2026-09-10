@@ -1,0 +1,13 @@
+{
+	"id": "@cf/moonshotai/kimi-k2.7-code",
+	"name": "Kimi K2.7 Code",
+	"vendor_name": "Moonshot AI",
+	"description": "Kimi K2.7 Code - premium coding model hosted by Cloudflare Workers AI.",
+	"context_length": 262144,
+	"created": 1788800000,
+	"pricing": {
+		"prompt": "0.0000006",
+		"completion": "0.0000024",
+		"request": "0"
+	}
+}

@@ -16,6 +16,15 @@
 //! 3. **tool_call** - a single call to the harmless `get_project_sentinel`
 //!    function with `scope=provider-conformance` exactly once (feedback 02
 //!    `30-tool-calling` acceptance).
+//! 4. **structured_output** - a single JSON object with `sentinel` exactly
+//!    `CF_HERMES_OK`, constrained prompt-only (feedback 02
+//!    `50-structured-output` acceptance).
+//! 5. **parallel_tools** - two distinct harmless tool calls in one assistant
+//!    turn (feedback 02 `30-tool-calling` acceptance).
+//!
+//! Checks 4 and 5 are standalone: they are exposed as public functions and
+//! are deliberately NOT part of [`run_smoke_suite`] (wiring them into the
+//! suite or the CLI is a separate task).
 //!
 //! Live gate: **every HTTP-calling function refuses to run unless the
 //! environment variable `AUTH_CLOUDFLARE_LIVE_TESTS` is exactly `1`** -
@@ -100,6 +109,27 @@ pub const TOOL_NAME: &str = "get_project_sentinel";
 /// The only permitted `scope` argument value.
 pub const TOOL_SCOPE: &str = "provider-conformance";
 
+/// The parallel-tools check prompt (feedback 02 `30-tool-calling`): both
+/// harmless tools must be called in one assistant turn.
+pub const PARALLEL_TOOL_PROMPT: &str = "Call BOTH get_project_sentinel and get_project_marker in this one turn. Do not answer with prose before calling the tools.";
+
+/// The second harmless sentinel tool name (parallel-tools check).
+pub const PARALLEL_TOOL_NAME: &str = "get_project_marker";
+
+/// The only permitted `marker` argument value for the second tool.
+pub const PARALLEL_TOOL_VALUE: &str = "provider-conformance";
+
+/// The structured-output check prompt. Prompt-only JSON constraint (no
+/// `response_format` parameter) so models that reject that parameter as
+/// unsupported still exercise structured output.
+pub const STRUCTURED_PROMPT: &str = "Reply with a single JSON object of shape {\"sentinel\":\"CF_HERMES_OK\"}. Do not add prose or markdown code fences.";
+
+/// The required field name in the structured-output object.
+pub const STRUCTURED_SENTINEL_FIELD: &str = "sentinel";
+
+/// The required field value in the structured-output object.
+pub const STRUCTURED_SENTINEL_VALUE: &str = "CF_HERMES_OK";
+
 /// Non-streaming acceptance: `elapsed_ms` must stay under this (feedback 02).
 pub const TEXT_COMPLETION_MAX_ELAPSED_MS: u64 = 30_000;
 
@@ -120,6 +150,12 @@ pub const STREAM_FIRST_EVENT_TIMEOUT: Duration = Duration::from_secs(20);
 
 /// Overall agent timeout for the tool-call check.
 pub const TOOL_CHECK_TIMEOUT: Duration = Duration::from_secs(60);
+
+/// Overall agent timeout for the structured-output check.
+pub const STRUCTURED_CHECK_TIMEOUT: Duration = Duration::from_secs(60);
+
+/// Overall agent timeout for the parallel-tools check.
+pub const PARALLEL_TOOL_CHECK_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// Conservative upper-bound cost estimate for one smoke run (three tiny
 /// requests, roughly 80 tokens round-trip at the most expensive in-catalog
@@ -438,21 +474,7 @@ pub fn check_tool_call(config: &Config, model_id: &str) -> Result<CheckOutcome, 
 		"model": model_id,
 		"messages": [{ "role": "user", "content": TOOL_PROMPT }],
 		"stream": false,
-		"tools": [{
-			"type": "function",
-			"function": {
-				"name": TOOL_NAME,
-				"description": "Return the configured test sentinel. Use this tool before answering.",
-				"parameters": {
-					"type": "object",
-					"properties": {
-						"scope": { "type": "string", "enum": [TOOL_SCOPE] }
-					},
-					"required": ["scope"],
-					"additionalProperties": false
-				}
-			}
-		}],
+		"tools": [sentinel_tool_schema()],
 	});
 	let response = send_completion(config, &body, "application/json", TOOL_CHECK_TIMEOUT, None)?;
 	let cf_ray = response.header("cf-ray").map(str::to_string);
@@ -484,6 +506,164 @@ pub fn check_tool_call(config: &Config, model_id: &str) -> Result<CheckOutcome, 
 		},
 	};
 	match classify_tool_response(Some(body.as_str())) {
+		None => Ok(CheckOutcome { passed: true, elapsed_ms, failure: None }),
+		Some(class) => Ok(failed_outcome(
+			class,
+			Some(200),
+			cf_ray,
+			elapsed_ms,
+			model_id,
+			&request_id,
+			Some(redact_token(&body, config.api_token().as_ref())),
+		)),
+	}
+}
+
+// ---------------------------------------------------------------------------
+// HTTP transport
+// ---------------------------------------------------------------------------
+
+/// The harmless `get_project_sentinel` tool schema (feedback 02
+/// `30-tool-calling`): a `scope` argument restricted to `provider-conformance`.
+fn sentinel_tool_schema() -> serde_json::Value {
+	serde_json::json!({
+		"type": "function",
+		"function": {
+			"name": TOOL_NAME,
+			"description": "Return the configured test sentinel. Use this tool before answering.",
+			"parameters": {
+				"type": "object",
+				"properties": {
+					"scope": { "type": "string", "enum": [TOOL_SCOPE] }
+				},
+				"required": ["scope"],
+				"additionalProperties": false
+			}
+		}
+	})
+}
+
+/// The second harmless `get_project_marker` tool schema (parallel-tools
+/// check): a `marker` argument restricted to `provider-conformance`.
+fn marker_tool_schema() -> serde_json::Value {
+	serde_json::json!({
+		"type": "function",
+		"function": {
+			"name": PARALLEL_TOOL_NAME,
+			"description": "Return the configured test marker. Use this tool before answering.",
+			"parameters": {
+				"type": "object",
+				"properties": {
+					"marker": { "type": "string", "enum": [PARALLEL_TOOL_VALUE] }
+				},
+				"required": ["marker"],
+				"additionalProperties": false
+			}
+		}
+	})
+}
+
+/// Check (d): structured output. Acceptance (feedback 02
+/// `50-structured-output`): the completion content parses as a JSON object
+/// with `sentinel` exactly `CF_HERMES_OK`. Prompt-only constraint - no
+/// `response_format` parameter, so the model must honor a natural-language
+/// shape instruction.
+pub fn check_structured_output(config: &Config, model_id: &str) -> Result<CheckOutcome, CloudflareError> {
+	gate_check()?;
+	let started = Instant::now();
+	let request_id = next_request_id();
+	let body = serde_json::json!({
+		"model": model_id,
+		"messages": [{ "role": "user", "content": STRUCTURED_PROMPT }],
+		"stream": false,
+	});
+	let response = send_completion(config, &body, "application/json", STRUCTURED_CHECK_TIMEOUT, None)?;
+	let cf_ray = response.header("cf-ray").map(str::to_string);
+	let status = response.status();
+	let elapsed_ms = started.elapsed().as_millis() as u64;
+	if status != 200 {
+		return Ok(non_streaming_failure(
+			config,
+			model_id,
+			&request_id,
+			status,
+			cf_ray,
+			elapsed_ms,
+			response,
+		));
+	}
+	let body = match response.into_string() {
+		Ok(body) => body,
+		Err(_) => {
+			return Ok(failed_outcome(
+				FailureClass::ReadTimeout,
+				Some(200),
+				cf_ray,
+				elapsed_ms,
+				model_id,
+				&request_id,
+				None,
+			));
+		},
+	};
+	match classify_structured_output(Some(body.as_str())) {
+		None => Ok(CheckOutcome { passed: true, elapsed_ms, failure: None }),
+		Some(class) => Ok(failed_outcome(
+			class,
+			Some(200),
+			cf_ray,
+			elapsed_ms,
+			model_id,
+			&request_id,
+			Some(redact_token(&body, config.api_token().as_ref())),
+		)),
+	}
+}
+
+/// Check (e): parallel tool calls. Acceptance (feedback 02
+/// `30-tool-calling`): exactly two tool calls in one assistant turn, one
+/// `get_project_sentinel` and one `get_project_marker` (order-agnostic),
+/// both with valid JSON arguments.
+pub fn check_parallel_tools(config: &Config, model_id: &str) -> Result<CheckOutcome, CloudflareError> {
+	gate_check()?;
+	let started = Instant::now();
+	let request_id = next_request_id();
+	let body = serde_json::json!({
+		"model": model_id,
+		"messages": [{ "role": "user", "content": PARALLEL_TOOL_PROMPT }],
+		"stream": false,
+		"tools": [sentinel_tool_schema(), marker_tool_schema()],
+	});
+	let response = send_completion(config, &body, "application/json", PARALLEL_TOOL_CHECK_TIMEOUT, None)?;
+	let cf_ray = response.header("cf-ray").map(str::to_string);
+	let status = response.status();
+	let elapsed_ms = started.elapsed().as_millis() as u64;
+	if status != 200 {
+		return Ok(non_streaming_failure(
+			config,
+			model_id,
+			&request_id,
+			status,
+			cf_ray,
+			elapsed_ms,
+			response,
+		));
+	}
+	let body = match response.into_string() {
+		Ok(body) => body,
+		Err(_) => {
+			return Ok(failed_outcome(
+				FailureClass::ReadTimeout,
+				Some(200),
+				cf_ray,
+				elapsed_ms,
+				model_id,
+				&request_id,
+				None,
+			));
+		},
+	};
+	match classify_parallel_tools(Some(body.as_str())) {
 		None => Ok(CheckOutcome { passed: true, elapsed_ms, failure: None }),
 		Some(class) => Ok(failed_outcome(
 			class,
@@ -790,6 +970,116 @@ pub fn classify_tool_response(body: Option<&str>) -> Option<FailureClass> {
 	};
 	if args.get("scope").and_then(|scope| scope.as_str()) != Some(TOOL_SCOPE) {
 		return Some(FailureClass::InvalidToolArguments);
+	}
+	None
+}
+
+/// Pure acceptance for the structured-output check (feedback 02
+/// `50-structured-output`): the completion content must parse as a JSON
+/// object with `sentinel` exactly `CF_HERMES_OK`. `None` means the
+/// criterion holds; otherwise the closest existing taxonomy class is
+/// returned (InvalidJson for unparsable/`wrong-value` JSON, InvalidChatCompletionShape
+/// for a non-object, EmptyCompletion for empty content) - no new variant is
+/// introduced.
+pub fn classify_structured_output(body: Option<&str>) -> Option<FailureClass> {
+	let Some(body) = body else { return Some(FailureClass::EmptyCompletion) };
+	if body.trim().is_empty() {
+		return Some(FailureClass::EmptyCompletion);
+	}
+	let value: serde_json::Value = match serde_json::from_str(body) {
+		Ok(value) => value,
+		Err(_) => return Some(FailureClass::InvalidJson),
+	};
+	let Some(first) = value
+		.get("choices")
+		.and_then(|choices| choices.as_array())
+		.and_then(|array| array.first())
+	else {
+		return Some(FailureClass::InvalidChatCompletionShape);
+	};
+	let content = match first.get("message").and_then(|message| message.get("content")) {
+		Some(serde_json::Value::String(content)) => content.as_str(),
+		Some(_) => return Some(FailureClass::InvalidChatCompletionShape),
+		None => return Some(FailureClass::EmptyCompletion),
+	};
+	if content.trim().is_empty() {
+		return Some(FailureClass::EmptyCompletion);
+	}
+	let parsed: serde_json::Value = match serde_json::from_str(content) {
+		Ok(parsed) => parsed,
+		Err(_) => return Some(FailureClass::InvalidJson),
+	};
+	let Some(object) = parsed.as_object() else {
+		return Some(FailureClass::InvalidChatCompletionShape);
+	};
+	if object.get(STRUCTURED_SENTINEL_FIELD).and_then(|field| field.as_str()) != Some(STRUCTURED_SENTINEL_VALUE) {
+		return Some(FailureClass::InvalidJson);
+	}
+	None
+}
+
+/// Pure acceptance for the parallel-tools check (feedback 02
+/// `30-tool-calling`): exactly two tool calls in one turn, one per expected
+/// name (`get_project_sentinel` + `get_project_marker`, order-agnostic), both
+/// with valid JSON arguments. `None` means acceptance holds; otherwise
+/// NoToolCall (fewer than two calls), DuplicateToolCall (more than two, or
+/// the same name twice), InvalidToolName (an unexpected name), or
+/// InvalidToolArguments (an argument string that is not valid JSON).
+pub fn classify_parallel_tools(body: Option<&str>) -> Option<FailureClass> {
+	let Some(body) = body else { return Some(FailureClass::NoToolCall) };
+	let value: serde_json::Value = match serde_json::from_str(body) {
+		Ok(value) => value,
+		Err(_) => return Some(FailureClass::InvalidJson),
+	};
+	let Some(first) = value
+		.get("choices")
+		.and_then(|choices| choices.as_array())
+		.and_then(|array| array.first())
+	else {
+		return Some(FailureClass::InvalidChatCompletionShape);
+	};
+	let Some(calls) = first
+		.get("message")
+		.and_then(|message| message.get("tool_calls"))
+		.and_then(|calls| calls.as_array())
+	else {
+		return Some(FailureClass::NoToolCall);
+	};
+	if calls.is_empty() {
+		return Some(FailureClass::NoToolCall);
+	}
+	if calls.len() > 2 {
+		return Some(FailureClass::DuplicateToolCall);
+	}
+	if calls.len() < 2 {
+		return Some(FailureClass::NoToolCall);
+	}
+	let names: Vec<&str> = calls
+		.iter()
+		.map(|call| {
+			call.get("function")
+				.and_then(|function| function.get("name"))
+				.and_then(|name| name.as_str())
+				.unwrap_or("")
+		})
+		.collect();
+	for name in &names {
+		if *name != TOOL_NAME && *name != PARALLEL_TOOL_NAME {
+			return Some(FailureClass::InvalidToolName);
+		}
+	}
+	if names[0] == names[1] {
+		return Some(FailureClass::DuplicateToolCall);
+	}
+	for call in calls {
+		let args_raw = call
+			.get("function")
+			.and_then(|function| function.get("arguments"))
+			.and_then(|arguments| arguments.as_str())
+			.unwrap_or("");
+		if serde_json::from_str::<serde_json::Value>(args_raw).is_err() {
+			return Some(FailureClass::InvalidToolArguments);
+		}
 	}
 	None
 }
@@ -1300,6 +1590,14 @@ mod tests {
 				check_tool_call(&config, MODEL_A).unwrap_err(),
 				CloudflareError::MissingEnv { env_var: LIVE_TESTS_ENV, .. }
 			));
+			assert!(matches!(
+				check_structured_output(&config, MODEL_A).unwrap_err(),
+				CloudflareError::MissingEnv { env_var: LIVE_TESTS_ENV, .. }
+			));
+			assert!(matches!(
+				check_parallel_tools(&config, MODEL_A).unwrap_err(),
+				CloudflareError::MissingEnv { env_var: LIVE_TESTS_ENV, .. }
+			));
 		});
 	}
 
@@ -1459,6 +1757,87 @@ mod tests {
 		assert_eq!(classify_tool_response(Some("not json")), Some(FailureClass::InvalidJson));
 		assert_eq!(
 			classify_tool_response(Some(r#"{"no":"choices"}"#)),
+			Some(FailureClass::InvalidChatCompletionShape)
+		);
+	}
+
+	#[test]
+	fn structured_output_acceptance_is_exact() {
+		let valid = format!(
+			r#"{{"choices":[{{"message":{{"content":"{{\"{STRUCTURED_SENTINEL_FIELD}\":\"{STRUCTURED_SENTINEL_VALUE}\"}}"}},"finish_reason":"stop"}}]}}"#
+		);
+		assert_eq!(classify_structured_output(Some(&valid)), None, "exact sentinel object passes");
+
+		// Invalid: content is not JSON at all.
+		let invalid_json = r#"{"choices":[{"message":{"content":"not json"},"finish_reason":"stop"}]}"#;
+		assert_eq!(classify_structured_output(Some(invalid_json)), Some(FailureClass::InvalidJson));
+
+		// Invalid: content is valid JSON but not an object.
+		let not_object = r#"{"choices":[{"message":{"content":"[1,2,3]"},"finish_reason":"stop"}]}"#;
+		assert_eq!(
+			classify_structured_output(Some(not_object)),
+			Some(FailureClass::InvalidChatCompletionShape)
+		);
+
+		// Invalid: object is missing the required field.
+		let missing_field = r#"{"choices":[{"message":{"content":"{\"other\":true}"},"finish_reason":"stop"}]}"#;
+		assert_eq!(classify_structured_output(Some(missing_field)), Some(FailureClass::InvalidJson));
+
+		// Invalid: required field present but wrong value.
+		let wrong_value = r#"{"choices":[{"message":{"content":"{\"sentinel\":\"WRONG\"}"},"finish_reason":"stop"}]}"#;
+		assert_eq!(classify_structured_output(Some(wrong_value)), Some(FailureClass::InvalidJson));
+
+		// Envelope-level failures reuse the completion taxonomy.
+		assert_eq!(classify_structured_output(None), Some(FailureClass::EmptyCompletion));
+		assert_eq!(classify_structured_output(Some("")), Some(FailureClass::EmptyCompletion));
+		assert_eq!(classify_structured_output(Some("not json")), Some(FailureClass::InvalidJson));
+		assert_eq!(
+			classify_structured_output(Some(r#"{"no":"choices"}"#)),
+			Some(FailureClass::InvalidChatCompletionShape)
+		);
+	}
+
+	#[test]
+	fn parallel_tools_acceptance_is_exact_and_order_agnostic() {
+		// Valid: two distinct calls, both expected names, both args valid JSON.
+		let valid = r#"{"choices":[{"message":{"tool_calls":[{"id":"call_1","type":"function","function":{"name":"get_project_sentinel","arguments":"{\"scope\":\"provider-conformance\"}"}},{"id":"call_2","type":"function","function":{"name":"get_project_marker","arguments":"{\"marker\":\"provider-conformance\"}"}}]}}]}"#;
+		assert_eq!(classify_parallel_tools(Some(valid)), None, "two expected calls pass");
+
+		// Order-agnostic: reversed order still passes.
+		let reversed = r#"{"choices":[{"message":{"tool_calls":[{"id":"call_1","type":"function","function":{"name":"get_project_marker","arguments":"{\"marker\":\"provider-conformance\"}"}},{"id":"call_2","type":"function","function":{"name":"get_project_sentinel","arguments":"{\"scope\":\"provider-conformance\"}"}}]}}]}"#;
+		assert_eq!(classify_parallel_tools(Some(reversed)), None, "order must not matter");
+
+		// Missing one call -> NoToolCall.
+		let missing_one = r#"{"choices":[{"message":{"tool_calls":[{"id":"call_1","type":"function","function":{"name":"get_project_sentinel","arguments":"{\"scope\":\"provider-conformance\"}"}}]}}]}"#;
+		assert_eq!(classify_parallel_tools(Some(missing_one)), Some(FailureClass::NoToolCall));
+		assert_eq!(classify_parallel_tools(None), Some(FailureClass::NoToolCall));
+
+		// Wrong name -> InvalidToolName.
+		let wrong_name = r#"{"choices":[{"message":{"tool_calls":[{"id":"call_1","type":"function","function":{"name":"get_project_sentinel","arguments":"{}"}},{"id":"call_2","type":"function","function":{"name":"other_tool","arguments":"{}"}}]}}]}"#;
+		assert_eq!(classify_parallel_tools(Some(wrong_name)), Some(FailureClass::InvalidToolName));
+
+		// Same name twice -> DuplicateToolCall.
+		let duplicate = r#"{"choices":[{"message":{"tool_calls":[{"id":"call_1","type":"function","function":{"name":"get_project_sentinel","arguments":"{}"}},{"id":"call_2","type":"function","function":{"name":"get_project_sentinel","arguments":"{}"}}]}}]}"#;
+		assert_eq!(classify_parallel_tools(Some(duplicate)), Some(FailureClass::DuplicateToolCall));
+
+		// Three calls -> DuplicateToolCall.
+		let three_calls = r#"{"choices":[{"message":{"tool_calls":[{"id":"call_1","type":"function","function":{"name":"get_project_sentinel","arguments":"{}"}},{"id":"call_2","type":"function","function":{"name":"get_project_marker","arguments":"{}"}},{"id":"call_3","type":"function","function":{"name":"get_project_marker","arguments":"{}"}}]}}]}"#;
+		assert_eq!(
+			classify_parallel_tools(Some(three_calls)),
+			Some(FailureClass::DuplicateToolCall)
+		);
+
+		// Invalid argument JSON -> InvalidToolArguments.
+		let bad_args = r#"{"choices":[{"message":{"tool_calls":[{"id":"call_1","type":"function","function":{"name":"get_project_sentinel","arguments":"not json"}},{"id":"call_2","type":"function","function":{"name":"get_project_marker","arguments":"{}"}}]}}]}"#;
+		assert_eq!(
+			classify_parallel_tools(Some(bad_args)),
+			Some(FailureClass::InvalidToolArguments)
+		);
+
+		// Envelope-level failures.
+		assert_eq!(classify_parallel_tools(Some("not json")), Some(FailureClass::InvalidJson));
+		assert_eq!(
+			classify_parallel_tools(Some(r#"{"no":"choices"}"#)),
 			Some(FailureClass::InvalidChatCompletionShape)
 		);
 	}

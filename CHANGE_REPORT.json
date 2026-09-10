@@ -68,7 +68,7 @@
 	},
 	"known_limitations": [
 		"Clippy -D warnings strict gating deferred until pre-existing warnings in catalog.rs/cache.rs are cleared",
-		"auth-hermes-cloudflare has no bin target yet; its release tarball carries the cdylib",
+		"auth-hermes-cloudflare ships its [[bin]] executable in releases (cdylib/dylib packaging removed)",
 		"Dependabot version updates land as PRs; merge policy not automated"
 	]
 }

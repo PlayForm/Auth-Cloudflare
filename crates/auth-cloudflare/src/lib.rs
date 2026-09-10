@@ -20,6 +20,7 @@ pub mod error;
 pub mod fallback_catalog;
 pub mod fetch;
 pub mod health;
+pub mod observability;
 pub mod policy;
 pub mod schema;
 pub mod tool_loop;
@@ -34,6 +35,9 @@ pub use fallback_catalog::{experimental_models, fallback_models};
 pub use health::{
 	CONFORMANCE_SUITE_VERSION, FailureClass, FailureEvidence, ModelHealthRecord, ModelVerification,
 	VerificationConfidence, VerificationStatus,
+};
+pub use observability::{
+	debug_protocol_enabled, redact, Event, EventLog, DEBUG_PROTOCOL_ENV, EVENT_LOG_ENV, OBSERVABILITY_ENV,
 };
 pub use policy::{
 	ranking_score, ModelPolicy, ModelStatus, PolicyEntry, RankingBreakdown, REFERENCE_CONTEXT_TOKENS,

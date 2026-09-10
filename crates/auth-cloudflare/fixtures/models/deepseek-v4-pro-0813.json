@@ -1,0 +1,13 @@
+{
+	"id": "@cf/deepseek-ai/deepseek-v4-pro-0813",
+	"name": "DeepSeek V4 Pro (080813)",
+	"vendor_name": "DeepSeek",
+	"description": "DeepSeek V4 Pro - premium reasoning model hosted by Cloudflare Workers AI.",
+	"context_length": 1048576,
+	"created": 1788800000,
+	"pricing": {
+		"prompt": "0.0000011",
+		"completion": "0.0000044",
+		"request": "0"
+	}
+}

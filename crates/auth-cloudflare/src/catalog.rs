@@ -1,4 +1,4 @@
-//! Catalog - Cloudflare AI model records and OpenRouter-format payload
+//! Catalog - Workers AI model records and OpenRouter-format payload
 //! normalization.
 //!
 //! This module owns the typed catalog contract consumed by the CLI
@@ -11,7 +11,7 @@
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 
-/// Curated fallback catalog - the account-verified 27 Cloudflare AI chat
+/// Curated fallback catalog - the account-verified 27 Cloudflare-hosted Workers AI chat
 /// models, filtered to a practical coding/tool set (minus `llama-guard-3-8b`).
 ///
 /// ORDER IS POLICY: DeepSeek V4 Flash is the development default (feedback
@@ -44,7 +44,7 @@ pub const FALLBACK_MODELS: &[&str] = &[
 
 /// Models currently marked experimental by project policy (feedback 01/02).
 /// Delivery conformance below threshold - selectable, never the default.
-pub const EXPERIMENTAL_MODELS: &[&str] = &["@cf/zai-org/glm-5.3-flash"];
+pub const EXPERIMENTAL_MODELS: &[&str] = &["@cf/zai-org/glm-5.3-flash", "@cf/zai-org/glm-5.3"];
 
 /// Models hidden from the primary agent picker (safety/classification).
 pub const HIDDEN_MODELS: &[&str] = &["@cf/meta/llama-guard-3-8b"];
@@ -81,7 +81,7 @@ pub struct CatalogFilters {
 	pub deprecated_included: bool,
 }
 
-/// Role of a Cloudflare AI model in the provider catalog.
+/// Role of a Workers AI model in the provider catalog.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ModelRole {
@@ -198,7 +198,7 @@ pub struct CapabilityProvenance {
 	pub reasoning: String,
 }
 
-/// Normalized Cloudflare AI model record - one source of truth for the
+/// Normalized Workers AI model record - one source of truth for the
 /// picker, the fallback list, and generated YAML.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ModelRecord {
@@ -313,6 +313,14 @@ impl ModelRecord {
 			Visibility::Available
 		};
 
+		// Derive the docs URL from the last `@cf/<org>/<model>` path segment;
+		// non-`@cf/` (routed) and malformed ids yield `None` gracefully.
+		let documentation_url = id
+			.strip_prefix("@cf/")
+			.and_then(|rest| rest.split('/').next_back())
+			.filter(|segment| !segment.is_empty())
+			.map(|segment| format!("https://developers.cloudflare.com/workers-ai/models/{segment}/"));
+
 		Some(Self {
 			display_name: item.get("name").and_then(|n| n.as_str()).unwrap_or(&id).to_string(),
 			publisher,
@@ -342,7 +350,7 @@ impl ModelRecord {
 				reasoning: "cloudflare_model_docs_or_schema".to_string(),
 			},
 			catalog_added_at: item.get("created").and_then(|c| c.as_i64()).and_then(Self::date_from_epoch),
-			documentation_url: None,
+			documentation_url,
 			raw: item.clone(),
 		})
 	}
@@ -520,5 +528,20 @@ mod tests {
 	fn date_from_epoch_converts() {
 		assert_eq!(ModelRecord::date_from_epoch(1_788_800_000), NaiveDate::from_ymd_opt(2026, 9, 7));
 		assert_eq!(ModelRecord::date_from_epoch(0), NaiveDate::from_ymd_opt(1970, 1, 1));
+	}
+
+	#[test]
+	fn documentation_url_derives_from_cf_id_segment() {
+		let entry = catalog_entry("@cf/deepseek-ai/deepseek-v4-flash-0731", 1_310_720, 1_788_800_000);
+		let record = ModelRecord::from_openrouter(&entry).expect("normalizes");
+		assert_eq!(
+			record.documentation_url.as_deref(),
+			Some("https://developers.cloudflare.com/workers-ai/models/deepseek-v4-flash-0731/")
+		);
+
+		// Routed (non-`@cf/`) ids carry no Workers AI docs URL.
+		let routed = catalog_entry("deepseek/deepseek-chat", 128_000, 1_788_800_000);
+		let record = ModelRecord::from_openrouter(&routed).expect("normalizes");
+		assert_eq!(record.documentation_url, None);
 	}
 }

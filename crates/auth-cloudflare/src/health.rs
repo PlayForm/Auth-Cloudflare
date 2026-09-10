@@ -203,6 +203,30 @@ impl ModelHealthRecord {
 	}
 }
 
+/// Render a token-free, human-readable delivery-health warning for a
+/// degraded model (feedback 01), or `None` for a clean/empty window.
+///
+/// The message states the model id, the percent delivery rate, the request
+/// count, and the recommended stable alternative - no tokens, secrets, or
+/// Authorization material are ever embedded.
+pub fn health_warning(record: &ModelHealthRecord, stable_alternative: &str) -> Option<String> {
+	if !record.is_degraded() {
+		return None;
+	}
+	let percent = record.delivery_success_rate().unwrap_or(0.0) * 100.0;
+	Some(format!(
+		"model {} delivery is degraded ({:.1} percent successful over {} requests); recommended stable alternative: {}",
+		record.model_id, percent, record.request_count, stable_alternative
+	))
+}
+
+/// The stable fallback to recommend for a model: the default model when the
+/// given id differs from it, or an empty-string sentinel when it already is
+/// the default (no change to recommend).
+pub fn recommended_stable_alternative(model_id: &str) -> &'static str {
+	if model_id == crate::DEFAULT_MODEL { "" } else { crate::DEFAULT_MODEL }
+}
+
 /// Outcome of the most recent conformance run (feedback 02).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -571,5 +595,54 @@ mod tests {
 		assert_eq!(evidence.failure_class, FailureClass::RateLimited);
 		assert_eq!(evidence.http_status, Some(429));
 		assert_eq!(evidence.cloudflare_ray_id.as_deref(), Some("ray-abc"));
+	}
+
+	#[test]
+	fn health_warning_renders_for_degraded_record() {
+		let record = health_record(100, 89, 11, 0, 0, 0);
+		let warning = health_warning(&record, crate::DEFAULT_MODEL).expect("warning present");
+		assert!(warning.contains("89.0"), "warning must contain the rate: {warning}");
+		assert!(
+			warning.contains(crate::DEFAULT_MODEL),
+			"warning must contain the alternative: {warning}"
+		);
+		assert!(warning.contains("100"), "warning must contain the request count: {warning}");
+		assert!(
+			warning.contains(&record.model_id),
+			"warning must contain the model id: {warning}"
+		);
+	}
+
+	#[test]
+	fn health_warning_none_for_clean_record() {
+		assert_eq!(health_warning(&health_record(100, 100, 0, 0, 0, 0), "alt"), None);
+	}
+
+	#[test]
+	fn health_warning_none_for_empty_record() {
+		assert_eq!(health_warning(&health_record(0, 0, 0, 0, 0, 0), "alt"), None);
+	}
+
+	#[test]
+	fn recommended_stable_alternative_empty_sentinel_for_default() {
+		assert_eq!(recommended_stable_alternative(crate::DEFAULT_MODEL), "");
+	}
+
+	#[test]
+	fn recommended_stable_alternative_returns_default_for_glm() {
+		assert_eq!(
+			recommended_stable_alternative("@cf/zai-org/glm-5.3-flash"),
+			crate::DEFAULT_MODEL
+		);
+	}
+
+	#[test]
+	fn health_warning_is_token_free() {
+		let record = health_record(31, 22, 9, 0, 0, 0);
+		let warning = health_warning(&record, crate::DEFAULT_MODEL).expect("warning present");
+		let lowered = warning.to_lowercase();
+		for forbidden in ["token", "secret", "bearer"] {
+			assert!(!lowered.contains(forbidden), "warning must not contain {forbidden}: {warning}");
+		}
 	}
 }

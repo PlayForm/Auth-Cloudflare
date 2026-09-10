@@ -49,6 +49,7 @@ use auth_cloudflare::error::CloudflareError;
 use auth_cloudflare::fetch::{fetch_catalog_from_api, FETCH_TIMEOUT};
 use auth_cloudflare::policy::ModelPolicy;
 use auth_cloudflare::schema::{VersionInfo, CATALOG_SCHEMA_VERSION};
+use auth_cloudflare::health;
 use auth_cloudflare::verify::{self, SuiteKind};
 use auth_cloudflare::{DEFAULT_MODEL, VERSION};
 
@@ -764,7 +765,8 @@ fn model_json(record: &ModelRecord, policy: &ModelPolicy) -> serde_json::Value {
 }
 
 /// The feedback-06 catalog envelope: schema_version, source, fetched_at,
-/// cache_status, default_model, models. Used by `catalog get` (provenance
+/// cache_status, default_model, model_count, experimental_included,
+/// deprecated_included, models. Used by `catalog get` (provenance
 /// source `live`|`cache`|`fallback`) and `catalog refresh` (source
 /// `cloudflare-workers-ai` - the catalog origin).
 fn catalog_document(
@@ -781,6 +783,9 @@ fn catalog_document(
 		"fetched_at": fetched_at,
 		"cache_status": cache_status,
 		"default_model": DEFAULT_MODEL,
+		"model_count": records.len(),
+		"experimental_included": true,
+		"deprecated_included": false,
 		"models": models,
 	})
 }
@@ -818,6 +823,9 @@ fn catalog_list_json(fetch: FetchCatalog) -> (i32, serde_json::Value) {
 		"source": resolved.source,
 		"cache_status": resolved.cache_status,
 		"default_model": DEFAULT_MODEL,
+		"model_count": models.len(),
+		"experimental_included": true,
+		"deprecated_included": false,
 		"models": models,
 	});
 	(exit, value)
@@ -1030,6 +1038,12 @@ fn model_inspect_json(fetch: FetchCatalog, model_id: &str) -> (i32, serde_json::
 	};
 	let mut value = model_json(record, &policy);
 	value["source"] = serde_json::Value::String(resolved.source.to_string());
+	// Surface a delivery-degraded warning (feedback 01) when the account
+	// health store has a Degraded/Failing conformance record for this model.
+	// Advisory only - never changes the exit code or the model value shape.
+	if let Some(warning) = degraded_model_warning(model_id) {
+		value["warning"] = serde_json::Value::String(warning);
+	}
 	(EXIT_OK, value)
 }
 
@@ -1248,10 +1262,76 @@ fn model_health_json() -> (i32, serde_json::Value) {
 	}
 }
 
-/// `policy get` - the core's bundled policy document, serialized as-is.
+/// `policy get` - the core's bundled policy document, serialized as-is. When
+/// the account health store records any Degraded/Failing verification, a
+/// top-level `warnings` array surfaces each one (model_id + message) without
+/// altering the policy shape itself.
 fn policy_get_json() -> (i32, serde_json::Value) {
 	let policy = ModelPolicy::default_policy();
-	(EXIT_OK, serde_json::to_value(policy).expect("ModelPolicy serializes"))
+	let mut value = serde_json::to_value(policy).expect("ModelPolicy serializes");
+	if let Some(store) = load_health_store_best_effort() {
+		let warnings: Vec<serde_json::Value> = store
+			.records
+			.values()
+			.filter_map(|verification| {
+				degraded_warning(verification).map(|message| {
+					serde_json::json!({
+						"model_id": verification.model_id,
+						"message": message,
+					})
+				})
+			})
+			.collect();
+		if !warnings.is_empty() {
+			value["warnings"] = serde_json::Value::Array(warnings);
+		}
+	}
+	(EXIT_OK, value)
+}
+
+// ---------------------------------------------------------------------------
+// health-store warnings (model inspect / policy get, feedback 01)
+// ---------------------------------------------------------------------------
+
+/// Load the account-scoped health store (`model-health.json`) best-effort:
+/// `None` when no cache dir resolves or the store is absent/corrupt.
+/// Surfacing a delivery-degraded warning is advisory and must never change a
+/// command's exit contract.
+fn load_health_store_best_effort() -> Option<verify::HealthStore> {
+	let cache_dir = resolve_config().cache_dir?;
+	verify::load_health_store(&cache_dir).ok()
+}
+
+/// Token-free feedback-01 delivery warning for a model whose most recent
+/// conformance verification is Degraded or Failing. Mirrors
+/// `health::health_warning`'s shape (names the model and the recommended
+/// stable alternative) but is keyed off the conformance-level
+/// [`health::ModelVerification`] signal. `None` for Passing/Untested/Expired
+/// or absent records - nothing to surface.
+fn degraded_warning(verification: &health::ModelVerification) -> Option<String> {
+	let degraded = matches!(
+		verification.status,
+		health::VerificationStatus::Degraded | health::VerificationStatus::Failing
+	);
+	if !degraded {
+		return None;
+	}
+	let alternative = health::recommended_stable_alternative(&verification.model_id);
+	let alternative = if alternative.is_empty() { DEFAULT_MODEL } else { alternative };
+	Some(format!(
+		"model {} delivery is degraded (verification status: {}); recommended stable alternative: {}",
+		verification.model_id,
+		enum_str(&verification.status),
+		alternative
+	))
+}
+
+/// Warning for one model id, or `None` when the health store has no
+/// Degraded/Failing record for it (or no store at all).
+fn degraded_model_warning(model_id: &str) -> Option<String> {
+	let store = load_health_store_best_effort()?;
+	let verification = store.get(model_id)?;
+	degraded_warning(verification)
 }
 
 // ---------------------------------------------------------------------------
@@ -1506,6 +1586,47 @@ mod tests {
 		auth_cloudflare::cache::write_catalog_cache(&dir, &meta, &payload).expect("seed cache");
 	}
 
+	/// A minimal valid verification record for health-store tests.
+	fn verification_record(model_id: &str, status: health::VerificationStatus) -> health::ModelVerification {
+		health::ModelVerification {
+			model_id: model_id.to_string(),
+			latest_run_at: Some(chrono::Utc::now()),
+			expires_at: None,
+			suite_version: health::CONFORMANCE_SUITE_VERSION.to_string(),
+			runner_version: "test".to_string(),
+			status,
+			agent_eligible: true,
+			confidence: health::VerificationConfidence::SmokeTested,
+			total_runs: 3,
+			successful_runs: 3,
+			text_completion_success_rate: Some(1.0),
+			stream_completion_success_rate: Some(1.0),
+			single_tool_success_rate: Some(1.0),
+			multi_turn_tool_success_rate: None,
+			structured_output_success_rate: None,
+			median_latency_ms: Some(100),
+			p95_latency_ms: None,
+			total_failures: 0,
+			timeout_failures: 0,
+			transport_failures: 0,
+			provider_5xx_failures: 0,
+			malformed_response_failures: 0,
+			malformed_tool_call_failures: 0,
+			tool_loop_failures: 0,
+			last_failure: None,
+		}
+	}
+
+	/// Seed the account-scoped health store for the synthetic account/token env.
+	fn seed_health_store(records: &[(&str, health::VerificationStatus)]) {
+		let dir = cache_dir_for_account(&AuthProvider::new(ACCOUNT));
+		let mut store = verify::HealthStore::new();
+		for (model_id, status) in records {
+			store.upsert(verification_record(model_id, *status));
+		}
+		verify::save_health_store(&dir, &store).expect("seed health store");
+	}
+
 	// ------------------------------------------------------------------
 	// arg parsing
 	// ------------------------------------------------------------------
@@ -1749,6 +1870,9 @@ mod tests {
 			assert_eq!(value["default_model"], DEFAULT_MODEL);
 			let models = value["models"].as_array().expect("models array");
 			assert!(!models.is_empty());
+			assert_eq!(value["model_count"].as_u64(), Some(models.len() as u64));
+			assert_eq!(value["experimental_included"], true);
+			assert_eq!(value["deprecated_included"], false);
 			assert_eq!(models[0]["id"], DEFAULT_MODEL);
 			assert_eq!(models[0]["status"], "recommended");
 			assert_eq!(models[0]["primary_agent_eligible"], true);
@@ -1812,6 +1936,9 @@ mod tests {
 			assert!(!models.is_empty());
 			assert!(models.iter().all(|m| m.is_string()));
 			assert_eq!(models[0], DEFAULT_MODEL);
+			assert_eq!(value["model_count"].as_u64(), Some(models.len() as u64));
+			assert_eq!(value["experimental_included"], true);
+			assert_eq!(value["deprecated_included"], false);
 		});
 	}
 
@@ -1855,6 +1982,9 @@ mod tests {
 				assert_eq!(value["default_model"], DEFAULT_MODEL);
 				let models = value["models"].as_array().expect("models array");
 				assert_eq!(models.len(), 2);
+				assert_eq!(value["model_count"], 2);
+				assert_eq!(value["experimental_included"], true);
+				assert_eq!(value["deprecated_included"], false);
 				assert_eq!(models[0]["id"], DEFAULT_MODEL);
 				assert_eq!(models[0]["status"], "recommended");
 				assert_eq!(models[0]["pricing_per_million"]["input"], 0.44);
@@ -2126,6 +2256,71 @@ mod tests {
 		let _ = std::fs::remove_dir_all(&home);
 	}
 
+	#[test]
+	fn model_inspect_degraded_record_surfaces_warning_with_alternative() {
+		let home = scratch_dir("inspect-degraded");
+		let _ = std::fs::remove_dir_all(&home);
+		with_env(
+			&[
+				(ACCOUNT_ENV, Some(ACCOUNT)),
+				(TOKEN_ENV, Some(TOKEN)),
+				("HERMES_HOME", Some(home.to_str().unwrap())),
+			],
+			|| {
+				seed_cache(&chrono::Utc::now().to_rfc3339(), &["@cf/zai-org/glm-5.3-flash"]);
+				seed_health_store(&[("@cf/zai-org/glm-5.3-flash", health::VerificationStatus::Degraded)]);
+				let (code, value) = run_json(&["model", "inspect", "@cf/zai-org/glm-5.3-flash", "--format", "json"]);
+				assert_eq!(code, EXIT_OK);
+				let warning = value["warning"].as_str().expect("degraded model surfaces a warning field");
+				assert!(
+					warning.contains(DEFAULT_MODEL),
+					"warning must name the stable alternative: {warning}"
+				);
+				assert!(
+					warning.contains("@cf/zai-org/glm-5.3-flash"),
+					"warning must name the degraded model: {warning}"
+				);
+			},
+		);
+		let _ = std::fs::remove_dir_all(&home);
+	}
+
+	#[test]
+	fn model_inspect_passing_or_absent_record_has_no_warning() {
+		let home = scratch_dir("inspect-no-warning");
+		let _ = std::fs::remove_dir_all(&home);
+		with_env(
+			&[
+				(ACCOUNT_ENV, Some(ACCOUNT)),
+				(TOKEN_ENV, Some(TOKEN)),
+				("HERMES_HOME", Some(home.to_str().unwrap())),
+			],
+			|| {
+				seed_cache(
+					&chrono::Utc::now().to_rfc3339(),
+					&[DEFAULT_MODEL, "@cf/moonshotai/kimi-k2.7-code"],
+				);
+				// A passing record surfaces nothing.
+				seed_health_store(&[(DEFAULT_MODEL, health::VerificationStatus::Passing)]);
+				let (code, value) = run_json(&["model", "inspect", DEFAULT_MODEL, "--format", "json"]);
+				assert_eq!(code, EXIT_OK);
+				assert!(
+					value.get("warning").is_none(),
+					"passing record must not surface a warning: {value}"
+				);
+				// A model with no health record surfaces nothing.
+				let (code, value) =
+					run_json(&["model", "inspect", "@cf/moonshotai/kimi-k2.7-code", "--format", "json"]);
+				assert_eq!(code, EXIT_OK);
+				assert!(
+					value.get("warning").is_none(),
+					"absent record must not surface a warning: {value}"
+				);
+			},
+		);
+		let _ = std::fs::remove_dir_all(&home);
+	}
+
 	// ------------------------------------------------------------------
 	// model verify / model health (Phase-3 conformance smoke suite)
 	// ------------------------------------------------------------------
@@ -2310,6 +2505,36 @@ mod tests {
 			assert_eq!(guard["status"], "hidden");
 			assert_eq!(guard["primary_agent_eligible"], false);
 		});
+	}
+
+	#[test]
+	fn policy_get_warnings_array_populated_for_degraded() {
+		let home = scratch_dir("policy-warnings");
+		let _ = std::fs::remove_dir_all(&home);
+		with_env(
+			&[
+				(ACCOUNT_ENV, Some(ACCOUNT)),
+				(TOKEN_ENV, Some(TOKEN)),
+				("HERMES_HOME", Some(home.to_str().unwrap())),
+			],
+			|| {
+				seed_health_store(&[
+					("@cf/zai-org/glm-5.3-flash", health::VerificationStatus::Failing),
+					(DEFAULT_MODEL, health::VerificationStatus::Passing),
+				]);
+				let (code, value) = run_json(&["policy", "get", "--format", "json"]);
+				assert_eq!(code, EXIT_OK);
+				let warnings = value["warnings"].as_array().expect("warnings array present for degraded model");
+				assert_eq!(warnings.len(), 1, "only the Failing model is warned: {value}");
+				assert_eq!(warnings[0]["model_id"], "@cf/zai-org/glm-5.3-flash");
+				let message = warnings[0]["message"].as_str().expect("message string");
+				assert!(
+					message.contains(DEFAULT_MODEL),
+					"message must name the stable alternative: {message}"
+				);
+			},
+		);
+		let _ = std::fs::remove_dir_all(&home);
 	}
 
 	// ------------------------------------------------------------------

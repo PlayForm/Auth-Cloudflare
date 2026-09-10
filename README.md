@@ -100,6 +100,46 @@ cargo build --release -p auth-cloudflare -p auth-hermes-cloudflare
 
 ---
 
+## JSON CLI contract 🧾
+
+The `auth-cloudflare` binary emits machine-readable JSON for every command
+that honors `--format json`: `version`, `doctor`, `catalog get`, `catalog
+list`, and `policy get`. This section pins the stable envelope shape that the
+Hermes plugin consumes.
+
+### `catalog get` envelope
+
+| Field                   | Type             | Meaning                                                          |
+| :---------------------- | :--------------- | :--------------------------------------------------------------- |
+| `schema_version`        | int              | Catalog schema version (`1`)                                     |
+| `source`                | string           | `live` \| `cache` \| `fallback` - where the records came from    |
+| `fetched_at`            | string           | RFC 3339 timestamp of the snapshot                               |
+| `cache_status`          | string           | `fresh` \| `stale` \| `none`                                     |
+| `default_model`         | string           | Provider default model id (`@cf/...`)                            |
+| `model_count`           | int              | Number of records in the resolved snapshot                       |
+| `experimental_included` | bool             | `true` - the fetch runs `hide_experimental=false`                |
+| `deprecated_included`   | bool             | `false` - the fetch runs `include_deprecated=false`              |
+| `models`                | array of objects | One object per model (fields below)                              |
+
+Each `models[]` object carries:
+
+| Field                    | Type   | Meaning                                                       |
+| :----------------------- | :----- | :------------------------------------------------------------ |
+| `id`                     | string | Model id (`@cf/...`)                                          |
+| `display_name`           | string | Human-readable model name                                     |
+| `status`                 | string | Policy status (`recommended`, `available`, `experimental`, …) |
+| `primary_agent_eligible` | bool   | Whether the model may serve as the primary agent model        |
+| `context_tokens`         | int    | Context window size in tokens                                 |
+| `pricing_per_million`    | object | `input`, `cached_input`, `output` per-million USD (nullable)  |
+| `capabilities`           | object | `chat`, `tools`, `reasoning` verdicts                         |
+
+`catalog list` returns the same envelope with `models` as an ordered array of
+model-id strings (picker order). The other JSON commands are `version`
+(name/version handshake), `doctor` (redacted status), and `policy get`
+(current model policy).
+
+---
+
 ## The Problem 🔥
 
 Hermes discovers provider catalogs at the OpenAI-standard `GET …/models`.
@@ -340,7 +380,7 @@ pnpm FormatCheck               # prettier --check over the repo
 ```
 
 - CI `Check.yml` runs fmt, clippy, and tests on every push/PR.
-- CI `Build.yml` builds release dylibs for four targets
+- CI `Build.yml` builds release executables for four targets
   (aarch64/x86_64 macOS + Linux) on `Cloudflare/v*` tags and attaches them
   to the release - the exact assets `download.sh` fetches.
 - Git flow is a reverse-PR workflow: `feat-dev`/`trunk` branches, `Source`
