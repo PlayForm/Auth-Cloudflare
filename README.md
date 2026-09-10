@@ -83,7 +83,7 @@ bash plugins/auth-hermes-cloudflare/download.sh
 The binary is discovered in this order (plugin `locate_auth_cloudflare_binary`):
 `AUTH_CLOUDFLARE_BIN` env → `PATH` → `~/.hermes/bin/auth-cloudflare` → plugin
 `bin/` → plugin `binaries/`. `cargo install` puts it on `PATH`; `download.sh`
-installs to the plugin's `bin/` directory by default (override with
+installs to `~/.hermes/bin/auth-cloudflare` by default (override with
 `BINARY_DIR`, or set `AUTH_CLOUDFLARE_BIN` for an exact path).
 
 **`Terminal`** - verify the install:
