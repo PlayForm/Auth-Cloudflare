@@ -34,6 +34,6 @@ git push Source feat-dev:Current
 
 > [!WARNING]
 >
-> The Source remote is `https://github.com/PlayForm/Hermes-Cloudflare.git`
+> The Source remote is `https://github.com/PlayForm/Auth-Hermes-Cloudflare.git`
 > (branch `Current`, remote name `Source`) - mirror this exactly when adding
 > remotes to a fresh clone.

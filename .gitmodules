@@ -1,6 +1,6 @@
 [submodule "plugins/auth-hermes-cloudflare"]
 path = plugins/auth-hermes-cloudflare
-url = https://github.com/PlayForm/Hermes-Cloudflare.git
+url = https://github.com/PlayForm/Auth-Hermes-Cloudflare.git
 ignore = dirty
 branch = Current
 remote = Source

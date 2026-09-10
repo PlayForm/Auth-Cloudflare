@@ -1,10 +1,10 @@
 {
-  "name": "@playform/cloudflare",
+  "name": "@playform/auth-cloudflare",
   "version": "0.0.1",
   "private": true,
-  "description": "Cloudflare Workers AI authentication provider plugin for Hermes Agent",
+  "description": "Auth Cloudflare Workers AI authentication provider plugin for Hermes Agent",
   "license": "CC0-1.0",
-  "repository": "PlayForm/Cloudflare",
+  "repository": "PlayForm/Auth-Cloudflare",
   "scripts": {
     "Format": "sh Maintain/Format.sh",
     "Format:LineEndings": "sh Maintain/Format.sh dos2unix",

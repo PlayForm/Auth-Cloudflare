@@ -1,4 +1,4 @@
-# [Cloudflare] ☁️
+# [Auth-Cloudflare] ☁️
 
 > [!NOTE]
 >
@@ -9,8 +9,8 @@
 > and `hermes model` offers the account's Workers AI chat models.
 > _One provider. Two env vars. Zero hand-rolled YAML._
 
-[![release](https://img.shields.io/static/v1?label=release&message=v0.0.1&color=blue)](https://github.com/PlayForm/Cloudflare/releases)
-[![plugin](https://img.shields.io/static/v1?label=plugin&message=v0.0.1&color=purple)](https://github.com/PlayForm/Hermes-Cloudflare/blob/Current/plugin.yaml)
+[![release](https://img.shields.io/static/v1?label=release&message=v0.0.1&color=blue)](https://github.com/PlayForm/Auth-Cloudflare/releases)
+[![plugin](https://img.shields.io/static/v1?label=plugin&message=v0.0.1&color=purple)](https://github.com/PlayForm/Auth-Hermes-Cloudflare/blob/Current/plugin.yaml)
 [![hermes](https://img.shields.io/static/v1?label=hermes&message=%E2%89%A50.16.0&color=blue)](https://github.com/NousResearch/hermes-agent)
 [![rust](https://img.shields.io/static/v1?label=rust&message=1.88%2B&color=orange)](https://www.rust-lang.org)
 [![license](https://img.shields.io/static/v1?label=license&message=CC0-1.0&color=lightgrey)](LICENSE)
@@ -27,8 +27,8 @@ Rust crates. No Rust toolchain is required for the common path.
 **`Terminal`**
 
 ```sh
-git clone https://github.com/PlayForm/Hermes-Cloudflare.git
-ln -s "$(pwd)/Hermes-Cloudflare" ~/.hermes/plugins/auth-hermes-cloudflare
+git clone https://github.com/PlayForm/Auth-Hermes-Cloudflare.git
+ln -s "$(pwd)/Auth-Hermes-Cloudflare" ~/.hermes/plugins/auth-hermes-cloudflare
 hermes plugins enable auth-hermes-cloudflare
 hermes
 ```
@@ -98,7 +98,7 @@ hermes cloudflare doctor                # same report through the plugin CLI
 **`Terminal`**
 
 ```sh
-git clone https://github.com/PlayForm/Cloudflare.git
+git clone https://github.com/PlayForm/Auth-Cloudflare.git
 cd Cloudflare
 git submodule update --init --recursive
 cargo build --release -p auth-cloudflare -p auth-hermes-cloudflare
@@ -212,7 +212,7 @@ crates/auth-cloudflare/          ← Core: auth, catalog, cache (cdylib + rlib)
 crates/auth-hermes-cloudflare/   ← Hermes integration (cdylib + rlib)
   lib.rs                         ← re-exports core types for tool schemas/hooks
 
-plugins/auth-hermes-cloudflare/  ← Hermes plugin (submodule → Hermes-Cloudflare)
+plugins/auth-hermes-cloudflare/  ← Hermes plugin (submodule → Auth-Hermes-Cloudflare)
   __init__.py                    ← register_provider, lazy URLs, fetch_models
 
 profiles/dev-cloudflare/         ← working Hermes profile (provider block)
@@ -234,7 +234,7 @@ picker and wizard paths.
 > [!NOTE]
 >
 > `plugins/auth-hermes-cloudflare/` is a separate repo
-> ([PlayForm/Hermes-Cloudflare](https://github.com/PlayForm/Hermes-Cloudflare)),
+> ([PlayForm/Auth-Hermes-Cloudflare](https://github.com/PlayForm/Auth-Hermes-Cloudflare)),
 > tracked here as a git submodule.
 
 ---
@@ -415,10 +415,10 @@ plugin. Cloudflare implements exactly that contract:
 
 | Want to…          | Start here                                                                                  |
 | ----------------- | ------------------------------------------------------------------------------------------- |
-| Report a bug      | [Open an issue](https://github.com/PlayForm/Cloudflare/issues/new?template=bug_report.md)   |
-| Suggest a feature | [Start a discussion](https://github.com/PlayForm/Cloudflare/discussions/new?category=ideas) |
-| Submit a PR       | [Fork & open a PR](https://github.com/PlayForm/Cloudflare/pulls)                            |
-| Ask a question    | [Discussions Q&A](https://github.com/PlayForm/Cloudflare/discussions/new?category=q-a)      |
+| Report a bug      | [Open an issue](https://github.com/PlayForm/Auth-Cloudflare/issues/new?template=bug_report.md)   |
+| Suggest a feature | [Start a discussion](https://github.com/PlayForm/Auth-Cloudflare/discussions/new?category=ideas) |
+| Submit a PR       | [Fork & open a PR](https://github.com/PlayForm/Auth-Cloudflare/pulls)                            |
+| Ask a question    | [Discussions Q&A](https://github.com/PlayForm/Auth-Cloudflare/discussions/new?category=q-a)      |
 
 No contribution is too small.
 First-time contributors are especially welcome.
@@ -433,4 +433,4 @@ Released under [CC0-1.0](LICENSE) - public domain.
 
 _Built with ❤️ by PlayForm._
 
-[Cloudflare]: https://github.com/PlayForm/Cloudflare
+[Auth-Cloudflare]: https://github.com/PlayForm/Auth-Cloudflare

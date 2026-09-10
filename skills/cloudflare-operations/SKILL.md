@@ -12,7 +12,7 @@ metadata:
 
 # Cloudflare Workers AI - Operations
 
-Provider plugin operations for the PlayForm/Cloudflare Hermes plugin. The
+Provider plugin operations for the PlayForm/Auth-Cloudflare Hermes plugin. The
 plugin registers the `cloudflare` provider (aliases: `cloudflare-ai`,
 `workers-ai`, `cf`).
 

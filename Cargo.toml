@@ -6,7 +6,7 @@ members = ["crates/auth-cloudflare", "crates/auth-hermes-cloudflare"]
 edition = "2021"
 rust-version = "1.88"
 license = "CC0-1.0"
-repository = "https://github.com/PlayForm/Cloudflare"
+repository = "https://github.com/PlayForm/Auth-Cloudflare"
 
 [workspace.dependencies]
 chrono = { version = "0.4.42", default-features = false, features = ["clock", "serde"] }
