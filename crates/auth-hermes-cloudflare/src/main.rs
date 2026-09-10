@@ -46,10 +46,11 @@ fn plugin_dirs() -> Vec<PathBuf> {
 				.and_then(Path::parent)
 				.map(|repo| repo.join("plugins").join(PLUGIN_NAME)),
 			manifest.parent().map(|parent| parent.join(PLUGIN_NAME)),
-		] {
-			if let Some(candidate) = candidate {
-				dirs.push(candidate);
-			}
+		]
+		.into_iter()
+		.flatten()
+		{
+			dirs.push(candidate);
 		}
 	}
 	dirs.push(
