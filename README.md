@@ -65,8 +65,13 @@ The Rust core ships as a single executable. Install it any of these ways:
 **`Terminal`** - cargo install (needs a Rust toolchain):
 
 ```sh
-cargo install auth-cloudflare --locked
+cargo install auth-cloudflare --locked           # engine executable
+cargo install auth-hermes-cloudflare --locked    # optional plugin utility CLI
 ```
+
+`auth-cloudflare` is the engine the plugin talks to; `auth-hermes-cloudflare`
+is the optional utility (`install`, `upgrade`, `doctor`, `status`, `link`,
+`uninstall`) that wraps the same installer.
 
 **`Terminal`** - via the plugin installer (checksum-verified download from the
 GitHub release, no Rust toolchain needed):
@@ -78,13 +83,14 @@ bash plugins/auth-hermes-cloudflare/download.sh
 The binary is discovered in this order (plugin `locate_auth_cloudflare_binary`):
 `AUTH_CLOUDFLARE_BIN` env → `PATH` → `~/.hermes/bin/auth-cloudflare` → plugin
 `bin/` → plugin `binaries/`. `cargo install` puts it on `PATH`; `download.sh`
-installs to `~/.hermes/bin` (the managed Hermes binary directory).
+installs to the plugin's `bin/` directory by default (override with
+`BINARY_DIR`, or set `AUTH_CLOUDFLARE_BIN` for an exact path).
 
 **`Terminal`** - verify the install:
 
 ```sh
-auth-cloudflare version --format json   # name/protocol handshake
-hermes cloudflare doctor                # redacted status, binary-backed
+auth-cloudflare doctor --format json    # redacted status, binary-backed
+hermes cloudflare doctor                # same report through the plugin CLI
 ```
 
 ### From source

@@ -5,6 +5,9 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
+readme = "../../README.md"
+keywords = ["cloudflare", "workers-ai", "authentication", "llm", "catalog"]
+categories = ["api-bindings", "authentication", "web-programming"]
 description = "auth-cloudflare: Cloudflare Workers AI auth provider core - account/token resolution, model catalog types, cache paths."
 
 [lib]

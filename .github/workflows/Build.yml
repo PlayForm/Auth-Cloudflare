@@ -35,12 +35,13 @@ jobs:
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
 
-      - uses: dtolnay/rust-toolchain@1.96.0
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master (2026-07), pins to 1.96.0
         with:
+          toolchain: 1.96.0
           targets: ${{ matrix.target }}
 
       - name: Install cross linker (Linux arm64)
@@ -53,7 +54,12 @@ jobs:
       - name: Build release binaries
         run: cargo build --release -p auth-cloudflare -p auth-hermes-cloudflare --target ${{ matrix.target }}
 
-      - name: Package tarballs + SHA256SUMS
+      # Each matrix leg packages ONLY its own two tarballs. It must NOT write a
+      # shared 'SHA256SUMS' filename: all four legs would collide on it, and
+      # download-artifact's merge-multiple would keep only one target's
+      # checksums. The single release-root SHA256SUMS (with all 8 entries) is
+      # generated once in the `release` job below instead.
+      - name: Package tarballs
         shell: bash
         run: |
           set -euo pipefail
@@ -64,22 +70,16 @@ jobs:
           cp "target/$T/release/auth-hermes-cloudflare" "$STAGE/auth-hermes-cloudflare"
           tar -czf "auth-cloudflare-$T.tar.gz" -C "$STAGE" auth-cloudflare
           tar -czf "auth-hermes-cloudflare-$T.tar.gz" -C "$STAGE" auth-hermes-cloudflare
-          if command -v sha256sum >/dev/null 2>&1; then
-            sha256sum auth-cloudflare-$T.tar.gz auth-hermes-cloudflare-$T.tar.gz > SHA256SUMS
-          else
-            shasum -a 256 auth-cloudflare-$T.tar.gz auth-hermes-cloudflare-$T.tar.gz > SHA256SUMS
-          fi
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "Packed auth-cloudflare-$T.tar.gz + auth-hermes-cloudflare-$T.tar.gz (v$VERSION)"
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: release-assets-${{ matrix.target }}
           path: |
             auth-cloudflare-${{ matrix.target }}.tar.gz
             auth-hermes-cloudflare-${{ matrix.target }}.tar.gz
-            SHA256SUMS
 
   release:
     name: Release
@@ -89,13 +89,53 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           merge-multiple: true
           path: assets
 
+      # One SHA256SUMS over ALL downloaded tarballs (8 entries), matching what
+      # download.sh fetches as a single file at the release root.
+      - name: Generate combined SHA256SUMS
+        shell: bash
+        working-directory: assets
+        run: |
+          set -euo pipefail
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum auth-cloudflare-*.tar.gz auth-hermes-cloudflare-*.tar.gz > SHA256SUMS
+          else
+            shasum -a 256 auth-cloudflare-*.tar.gz auth-hermes-cloudflare-*.tar.gz > SHA256SUMS
+          fi
+          cat SHA256SUMS
+
       - name: Create release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
         with:
           files: assets/*
           generate_release_notes: true
+
+  Finalize:
+    name: Finalize release assets
+    needs: release
+    if: startsWith(github.ref, 'refs/tags/Cloudflare/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Verify every target's assets are attached
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          assets=$(gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json assets -q '.assets[].name')
+          echo "Attached assets:"; echo "$assets"
+          missing=0
+          for t in aarch64-apple-darwin x86_64-apple-darwin x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu; do
+            echo "$assets" | grep -Fxq "auth-cloudflare-$t.tar.gz" || { echo "::error::missing auth-cloudflare-$t.tar.gz"; missing=1; }
+          done
+          echo "$assets" | grep -Fxq "SHA256SUMS" || { echo "::error::missing SHA256SUMS"; missing=1; }
+          if [ "$missing" -ne 0 ]; then
+            echo "::error::Release matrix is incomplete - do NOT publish notes claiming a full platform set."
+            exit 1
+          fi
+          echo "All 4 targets present (auth-cloudflare) plus SHA256SUMS. Matrix complete."

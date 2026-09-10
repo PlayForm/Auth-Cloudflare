@@ -5,6 +5,9 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
+readme = "../../README.md"
+keywords = ["cloudflare", "workers-ai", "hermes", "provider"]
+categories = ["api-bindings", "authentication"]
 description = "auth-hermes-cloudflare: Hermes Agent-specific integration for the Cloudflare Workers AI auth provider - tool schemas, hook dispatch, skill registration"
 
 [lib]

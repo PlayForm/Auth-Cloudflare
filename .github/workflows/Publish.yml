@@ -1,0 +1,146 @@
+name: Publish
+
+concurrency:
+  group: Publish-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+on:
+  push:
+    tags: ["Cloudflare/v*"]
+  workflow_dispatch:
+    inputs:
+      publish_crates:
+        description: "Attempt `cargo publish` to crates.io (publishes auth-cloudflare first, then auth-hermes-cloudflare)"
+        type: boolean
+        default: false
+
+env:
+  CARGO_TERM_COLOR: always
+  DO_NOT_TRACK: 1
+
+jobs:
+  Test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+
+      - name: Setup Rust (stable 1.96.0)
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master (2026-07), pins to rust-toolchain.toml's 1.96.0
+        with:
+          toolchain: 1.96.0
+
+      - name: Cache cargo
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: |
+            ~/.cargo/registry/
+            ~/.cargo/git/
+            target/
+          key: cargo-test-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: cargo-test-${{ runner.os }}-
+
+      - name: Cargo test
+        run: cargo test -p auth-cloudflare -p auth-hermes-cloudflare --release
+
+  Publish-auth-cloudflare:
+    name: Publish auth-cloudflare
+    needs: [Test]
+    runs-on: ubuntu-latest
+    environment: Release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+
+      - name: Setup Rust (stable 1.96.0)
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master (2026-07), pins to rust-toolchain.toml's 1.96.0
+        with:
+          toolchain: 1.96.0
+
+      - name: Cache cargo
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: |
+            ~/.cargo/registry/
+            ~/.cargo/git/
+            target/
+          key: cargo-publish-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: cargo-publish-${{ runner.os }}-
+
+      # crates.io publishing is strictly opt-in: a plain `Cloudflare/v*` tag
+      # push does NOT publish to crates.io (that tag only triggers Build.yml's
+      # GitHub Release). Publish happens only on an explicit `workflow_dispatch`
+      # with publish_crates=true, so a tag-push release can never burn an
+      # immutable crates.io version. crates.io versions are immutable, so check
+      # the sparse index first and skip if this version is already live.
+      - name: Check if auth-cloudflare version is already published
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_crates }}
+        id: check
+        run: |
+          VERSION=$(grep '^version' crates/auth-cloudflare/Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if curl -sL "https://index.crates.io/au/th/auth-cloudflare" | grep -q "\"vers\":\"$VERSION\""; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish auth-cloudflare to crates.io (opt-in)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_crates && steps.check.outputs.published == 'false' }}
+        run: cargo publish -p auth-cloudflare --no-verify
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+  Publish-auth-hermes-cloudflare:
+    name: Publish auth-hermes-cloudflare
+    needs: [Publish-auth-cloudflare]
+    runs-on: ubuntu-latest
+    environment: Release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+
+      - name: Setup Rust (stable 1.96.0)
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master (2026-07), pins to rust-toolchain.toml's 1.96.0
+        with:
+          toolchain: 1.96.0
+
+      - name: Cache cargo
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: |
+            ~/.cargo/registry/
+            ~/.cargo/git/
+            target/
+          key: cargo-publish-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: cargo-publish-${{ runner.os }}-
+
+      # auth-hermes-cloudflare path-depends on auth-cloudflare (version 0.0.1),
+      # and `cargo publish` strips the path key, so it can only publish once a
+      # matching auth-cloudflare 0.0.1 is live on crates.io (published by the
+      # preceding Publish-auth-cloudflare job). Opt-in semantics and the
+      # index-version skip are the same as above.
+      - name: Check if auth-hermes-cloudflare version is already published
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_crates }}
+        id: check
+        run: |
+          VERSION=$(grep '^version' crates/auth-hermes-cloudflare/Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if curl -sL "https://index.crates.io/au/th/auth-hermes-cloudflare" | grep -q "\"vers\":\"$VERSION\""; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish auth-hermes-cloudflare to crates.io (opt-in)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_crates && steps.check.outputs.published == 'false' }}
+        run: cargo publish -p auth-hermes-cloudflare --no-verify
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
