@@ -16,16 +16,17 @@ metadata:
 >
 > Tag format is `Cloudflare/v<semver>` (e.g. `Cloudflare/v0.1.0`) - the
 > `Build.yml` workflow triggers on `Cloudflare/v*` and attaches per-target
-> `cloudflare-hermes-<target>.tar.gz` assets. Never use a bare `v*` tag.
+> `auth-cloudflare-<target>.tar.gz` + `auth-hermes-cloudflare-<target>.tar.gz`
+> assets plus a single `SHA256SUMS`. Never use a bare `v*` tag.
 
 ## Release checklist
 
-1. **Version sync** - one version across all three:
-   - `crates/cloudflare/Cargo.toml`
-   - `crates/cloudflare-hermes/Cargo.toml`
-   - `package.json` (`@playform/cloudflare`)
-   - `plugins/cloudflare/plugin.yaml`
-2. **BINARY_VERSION** - update `plugins/cloudflare/BINARY_VERSION` with the
+1. **Version sync** - one version across:
+   - `crates/auth-cloudflare/Cargo.toml`
+   - `crates/auth-hermes-cloudflare/Cargo.toml`
+   - `package.json`
+   - `plugins/auth-hermes-cloudflare/plugin.yaml`
+2. **BINARY_VERSION** - update `plugins/auth-hermes-cloudflare/BINARY_VERSION` with the
    plain version (`0.1.0`, no `v`, no tag prefix). `download.sh` reads this
    first; the GitHub-API fallback parses `Cloudflare/v<tag>`.
 3. **Changelog** - add a `.playform/release-notes/<version>.md` entry.
@@ -43,5 +44,5 @@ metadata:
 - Rust API/behavior change → bump minor, keep the plugin shim in lockstep.
 - Plugin-only fix (no crate change) → bump `plugin.yaml` version only; the
   crates may trail.
-- dylib ABI is not stable across versions - `download.sh` always fetches the
+- The executable's JSON CLI protocol is not stable across versions - `download.sh` always fetches the
   exact `BINARY_VERSION`, never "latest" for an existing install.

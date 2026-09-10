@@ -78,16 +78,16 @@ fn locate_binary() -> Option<PathBuf> {
 	if let Some(found) = which(BINARY_NAME) {
 		return Some(found);
 	}
+	let managed = managed_binary_path();
+	if managed.is_file() {
+		return Some(managed);
+	}
 	for dir in plugin_dirs() {
 		for candidate in [dir.join("bin").join(BINARY_NAME), dir.join("binaries").join(BINARY_NAME)] {
 			if candidate.is_file() {
 				return Some(candidate);
 			}
 		}
-	}
-	let managed = managed_binary_path();
-	if managed.is_file() {
-		return Some(managed);
 	}
 	None
 }
