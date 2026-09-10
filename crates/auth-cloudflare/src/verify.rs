@@ -796,8 +796,14 @@ pub fn classify_tool_response(body: Option<&str>) -> Option<FailureClass> {
 
 /// Pure streaming acceptance over a fully read event stream. `None` means
 /// every acceptance criterion holds: first valid event within 20 s, at least
-/// one content delta, exactly one terminal chunk, no protocol error, total
-/// duration under the configured timeout.
+/// one content delta, a terminal chunk with a finish reason, no protocol
+/// error, total duration under the configured timeout.
+///
+/// Terminal-chunk policy: a second `finish_reason` is tolerated when it
+/// repeats the SAME reason on an empty delta (DeepSeek re-emits the terminal
+/// as the final usage-carrying chunk before `[DONE]` - the live smoke run
+/// observed `finish_reason:"stop"` twice). A conflicting second reason, or
+/// any content delta delivered AFTER a terminal chunk, is a protocol error.
 pub fn classify_stream_failure(
 	events: &[StreamEvent],
 	first_event_elapsed_ms: Option<u64>,
@@ -818,18 +824,24 @@ pub fn classify_stream_failure(
 		Some(_) => {},
 	}
 	let mut content_delta = false;
-	let mut terminal_seen = false;
+	let mut terminal_reason: Option<String> = None;
 	for event in events {
 		match event {
 			StreamEvent::Data(value) => {
-				let Some(first) = value
-					.get("choices")
+				let choices_field = value.get("choices");
+				let first = choices_field
 					.and_then(|choices| choices.as_array())
-					.and_then(|array| array.first())
-				else {
-					// A data event without a completion-shaped choices array
-					// is a protocol error for this acceptance.
-					return Some(FailureClass::InvalidSseEvent);
+					.and_then(|array| array.first());
+				let Some(first) = first else {
+					// A usage-only trailer chunk (empty or missing `choices`
+					// array - the standard OpenAI-compatible chunk after the
+					// terminal, e.g. DeepSeek's `{"choices":[],"usage":{...}}`)
+					// is NOT a protocol error. A `choices` field that is
+					// present but not an array IS.
+					if choices_field.is_some_and(|choices| !choices.is_array()) {
+						return Some(FailureClass::InvalidSseEvent);
+					}
+					continue;
 				};
 				if let Some(delta) = first
 					.get("delta")
@@ -837,15 +849,26 @@ pub fn classify_stream_failure(
 					.and_then(|content| content.as_str())
 				{
 					if !delta.is_empty() {
+						if terminal_reason.is_some() {
+							// Content delivered after a terminal chunk is a
+							// genuine protocol violation.
+							return Some(FailureClass::InvalidSseEvent);
+						}
 						content_delta = true;
 					}
 				}
-				if let Some(serde_json::Value::String(_)) = first.get("finish_reason") {
-					if terminal_seen {
-						// A second terminal chunk is a protocol violation.
-						return Some(FailureClass::InvalidSseEvent);
+				if let Some(reason) = first.get("finish_reason").and_then(|reason| reason.as_str()) {
+					if let Some(first_reason) = &terminal_reason {
+						if *first_reason != reason {
+							// A second terminal chunk with a DIFFERENT reason
+							// is a protocol violation; the same reason
+							// re-emitted on an empty delta is the provider's
+							// usage trailer and is accepted.
+							return Some(FailureClass::InvalidSseEvent);
+						}
+					} else {
+						terminal_reason = Some(reason.to_string());
 					}
-					terminal_seen = true;
 				}
 			},
 			StreamEvent::Done => break,
@@ -855,7 +878,7 @@ pub fn classify_stream_failure(
 	if !content_delta {
 		return Some(FailureClass::EmptyCompletion);
 	}
-	if !terminal_seen {
+	if terminal_reason.is_none() {
 		return Some(FailureClass::MissingFinishReason);
 	}
 	None
@@ -1480,14 +1503,63 @@ mod tests {
 		];
 		assert_eq!(
 			classify_stream_failure(&duplicate_terminal, Some(100), 500),
+			None,
+			"the SAME finish_reason re-emitted on an empty delta is DeepSeek's usage trailer - accepted"
+		);
+
+		let conflicting_terminal = vec![
+			data_event(Some("x"), None),
+			data_event(None, Some("stop")),
+			data_event(None, Some("length")),
+		];
+		assert_eq!(
+			classify_stream_failure(&conflicting_terminal, Some(100), 500),
 			Some(FailureClass::InvalidSseEvent),
-			"a second terminal chunk is a protocol violation"
+			"a second terminal chunk with a DIFFERENT reason is a protocol violation"
+		);
+
+		let content_after_terminal = vec![
+			data_event(Some("x"), None),
+			data_event(None, Some("stop")),
+			data_event(Some("y"), None),
+		];
+		assert_eq!(
+			classify_stream_failure(&content_after_terminal, Some(100), 500),
+			Some(FailureClass::InvalidSseEvent),
+			"content delivered after a terminal chunk is a protocol violation"
 		);
 
 		let done_without_terminal = vec![data_event(Some("x"), None), StreamEvent::Done];
 		assert_eq!(
 			classify_stream_failure(&done_without_terminal, Some(100), 500),
 			Some(FailureClass::MissingFinishReason)
+		);
+	}
+
+	#[test]
+	fn stream_acceptance_ignores_usage_only_trailer_chunk() {
+		// DeepSeek (and other OpenAI-compatible providers) emit a standard
+		// trailing chunk with an EMPTY choices array carrying usage stats
+		// after the terminal chunk, before the [DONE] sentinel. It is not a
+		// protocol error (regression: live smoke run classified it as
+		// InvalidSseEvent).
+		let with_trailer = vec![
+			data_event(Some("x"), None),
+			data_event(None, Some("stop")),
+			StreamEvent::Data(serde_json::json!({ "choices": [], "usage": { "total_tokens": 12 } })),
+			StreamEvent::Done,
+		];
+		assert_eq!(
+			classify_stream_failure(&with_trailer, Some(100), 500),
+			None,
+			"empty-choices usage trailer + [DONE] must pass acceptance"
+		);
+
+		// A choices field that is present but NOT an array stays an error.
+		let malformed_choices = vec![StreamEvent::Data(serde_json::json!({ "choices": "nope" }))];
+		assert_eq!(
+			classify_stream_failure(&malformed_choices, Some(100), 500),
+			Some(FailureClass::InvalidSseEvent)
 		);
 	}
 

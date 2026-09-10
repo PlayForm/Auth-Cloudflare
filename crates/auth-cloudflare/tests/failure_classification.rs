@@ -118,7 +118,9 @@ fn transport_messages_classify_by_keyword() {
 }
 
 #[test]
-fn stream_failure_duplicate_terminal_is_protocol_violation() {
+fn stream_failure_same_reason_duplicate_terminal_is_accepted() {
+	// DeepSeek re-emits the terminal finish_reason on the final usage chunk
+	// (live smoke evidence) - the same reason on an empty delta is accepted.
 	let duplicate_terminal = vec![
 		data_event(Some("x"), None),
 		data_event(None, Some("stop")),
@@ -126,8 +128,22 @@ fn stream_failure_duplicate_terminal_is_protocol_violation() {
 	];
 	assert_eq!(
 		classify_stream_failure(&duplicate_terminal, Some(100), 500),
+		None,
+		"the SAME finish_reason re-emitted on an empty delta is the provider's usage trailer"
+	);
+}
+
+#[test]
+fn stream_failure_conflicting_terminals_are_protocol_violation() {
+	let conflicting_terminal = vec![
+		data_event(Some("x"), None),
+		data_event(None, Some("stop")),
+		data_event(None, Some("length")),
+	];
+	assert_eq!(
+		classify_stream_failure(&conflicting_terminal, Some(100), 500),
 		Some(FailureClass::InvalidSseEvent),
-		"a second terminal chunk is a protocol violation"
+		"a second terminal chunk with a DIFFERENT reason is a protocol violation"
 	);
 }
 
