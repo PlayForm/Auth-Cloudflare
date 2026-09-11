@@ -14,7 +14,7 @@ metadata:
 
 > [!IMPORTANT]
 >
-> Tag format is `Cloudflare/v<semver>` (e.g. `Cloudflare/v0.1.0`) - the
+> Tag format is `Cloudflare/v<semver>` (e.g. `Cloudflare/v0.0.1`) - the
 > `Build.yml` workflow triggers on `Cloudflare/v*` and attaches per-target
 > `auth-cloudflare-<target>.tar.gz` + `auth-hermes-cloudflare-<target>.tar.gz`
 > assets plus a per-target `SHA256SUMS-<target>.txt` checksum file. Never use
@@ -33,8 +33,8 @@ metadata:
 3. **Changelog** - add a `.playform/release-notes/<version>.md` entry.
 4. **Tag + push**:
    ```sh
-   git tag Cloudflare/v0.1.0
-   git push Source Cloudflare/v0.1.0
+   git tag Cloudflare/v0.0.1
+   git push Source Cloudflare/v0.0.1
    ```
 5. **Verify** - the workflow uploads one artifact per target; check the
    release page lists `aarch64-apple-darwin`, `x86_64-apple-darwin`,
