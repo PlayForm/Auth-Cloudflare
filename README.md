@@ -51,9 +51,9 @@ administration permissions.
 >
 > The picker works pure-Python (no compiled dependencies). The
 > `auth-cloudflare` executable backs the full command surface - `hermes
-> cloudflare doctor / catalog refresh / model inspect`, catalog caching, and
+cloudflare doctor / catalog refresh / model inspect`, catalog caching, and
 > the conformance commands (`model verify --suite smoke|tool-loop`, `model
-> health`). `download.sh` installs that executable (checksum-verified,
+health`). `download.sh` installs that executable (checksum-verified,
 > atomic, fail-closed) to a managed path; without it the picker still works
 > through the in-process fallback, but the diagnostics and conformance
 > commands are unavailable.
@@ -115,17 +115,17 @@ Hermes plugin consumes.
 
 ### `catalog get` envelope
 
-| Field                   | Type             | Meaning                                                          |
-| :---------------------- | :--------------- | :--------------------------------------------------------------- |
-| `schema_version`        | int              | Catalog schema version (`1`)                                     |
-| `source`                | string           | `live` \| `cache` \| `fallback` - where the records came from    |
-| `fetched_at`            | string           | RFC 3339 timestamp of the snapshot                               |
-| `cache_status`          | string           | `fresh` \| `stale` \| `none`                                     |
-| `default_model`         | string           | Provider default model id (`@cf/...`)                            |
-| `model_count`           | int              | Number of records in the resolved snapshot                       |
-| `experimental_included` | bool             | `true` - the fetch runs `hide_experimental=false`                |
-| `deprecated_included`   | bool             | `false` - the fetch runs `include_deprecated=false`              |
-| `models`                | array of objects | One object per model (fields below)                              |
+| Field                   | Type             | Meaning                                                       |
+| :---------------------- | :--------------- | :------------------------------------------------------------ |
+| `schema_version`        | int              | Catalog schema version (`1`)                                  |
+| `source`                | string           | `live` \| `cache` \| `fallback` - where the records came from |
+| `fetched_at`            | string           | RFC 3339 timestamp of the snapshot                            |
+| `cache_status`          | string           | `fresh` \| `stale` \| `none`                                  |
+| `default_model`         | string           | Provider default model id (`@cf/...`)                         |
+| `model_count`           | int              | Number of records in the resolved snapshot                    |
+| `experimental_included` | bool             | `true` - the fetch runs `hide_experimental=false`             |
+| `deprecated_included`   | bool             | `false` - the fetch runs `include_deprecated=false`           |
+| `models`                | array of objects | One object per model (fields below)                           |
 
 Each `models[]` object carries:
 
@@ -241,18 +241,18 @@ picker and wizard paths.
 
 ## Provider Surface 🔧
 
-| Aspect           | Value                                                                                                                     |
-| :--------------- | :------------------------------------------------------------------------------------------------------------------------ |
-| Provider name    | `auth-cloudflare-workers-ai`                                                                                              |
-| Aliases          | `cloudflare`, `cloudflare-ai`, `auth-cloudflare-workers-ai`, `cloudflare-workers-ai`, `workers-ai`, `cf-workers-ai`, `cf` |
-| Display name     | `Auth Cloudflare Workers AI`                                                                                              |
-| API mode         | `chat_completions`                                                                                                        |
-| Auth type        | `api_key`                                                                                                                 |
-| Base URL         | derived from the account ID - `fixed_base_url`, the setup wizard never prompts for an override                            |
-| Health check     | disabled (no `/models` endpoint); token verify is used instead                                                            |
-| Signup           | [dash.cloudflare.com/profile/api-tokens](https://dash.cloudflare.com/profile/api-tokens)                                  |
-| Default model    | `@cf/deepseek-ai/deepseek-v4-flash-0731`                                                                                  |
-| Fallback catalog | 22 curated chat models compiled into the profile                                                                          |
+| Aspect           | Value                                                                                                                                        |
+| :--------------- | :------------------------------------------------------------------------------------------------------------------------------------------- |
+| Provider name    | `auth-cloudflare-workers-ai`                                                                                                                 |
+| Aliases          | `cloudflare`, `cloudflare-ai`, `auth-cloudflare-workers-ai`, `cloudflare-workers-ai`, `workers-ai`, `cf-workers-ai`, `cf`                    |
+| Display name     | `Auth Cloudflare Workers AI`                                                                                                                 |
+| API mode         | `chat_completions`                                                                                                                           |
+| Auth type        | `api_key`                                                                                                                                    |
+| Base URL         | derived from the account ID; `hermes cloudflare setup` writes it to `CLOUDFLARE_BASE_URL`, the wizard pre-fills it - never typed by the user |
+| Health check     | disabled (no `/models` endpoint); token verify is used instead                                                                               |
+| Signup           | [dash.cloudflare.com/profile/api-tokens](https://dash.cloudflare.com/profile/api-tokens)                                                     |
+| Default model    | `@cf/deepseek-ai/deepseek-v4-flash-0731`                                                                                                     |
+| Fallback catalog | 22 curated chat models compiled into the profile                                                                                             |
 
 ---
 
@@ -405,8 +405,10 @@ plugin. Cloudflare implements exactly that contract:
 
 - `ProviderProfile` subclass + `register_provider()` - the same import
   side-effect pattern every bundled Hermes provider follows.
-- `fixed_base_url=True` - the base URL is derived from the account ID, so the
-  setup wizard never asks for a manual Base URL override.
+- `CLOUDFLARE_BASE_URL` in the profile `env_vars` - stock Hermes maps the
+  `*_BASE_URL` suffix to `ProviderConfig.base_url_env_var`, and
+  `hermes cloudflare setup` writes the account-derived URL there, so the
+  setup wizard pre-fills the Base URL prompt and the user never types one.
 - Lazy URL properties - plugin discovery runs before the profile `.env` is
   loaded, so URLs compute from `os.environ` at access time, never at import.
 
@@ -416,8 +418,8 @@ plugin. Cloudflare implements exactly that contract:
 
 ## Contributing 🤝
 
-| Want to…          | Start here                                                                                  |
-| ----------------- | ------------------------------------------------------------------------------------------- |
+| Want to…          | Start here                                                                                       |
+| ----------------- | ------------------------------------------------------------------------------------------------ |
 | Report a bug      | [Open an issue](https://github.com/PlayForm/Auth-Cloudflare/issues/new?template=bug_report.md)   |
 | Suggest a feature | [Start a discussion](https://github.com/PlayForm/Auth-Cloudflare/discussions/new?category=ideas) |
 | Submit a PR       | [Fork & open a PR](https://github.com/PlayForm/Auth-Cloudflare/pulls)                            |
