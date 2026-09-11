@@ -390,7 +390,8 @@ pnpm FormatCheck               # prettier --check over the repo
 - CI `Check.yml` runs fmt, clippy, and tests on every push/PR.
 - CI `Build.yml` builds release executables for four targets
   (aarch64/x86_64 macOS + Linux) on `Cloudflare/v*` tags and attaches them
-  to the release - the exact assets `download.sh` fetches.
+  to the release with per-target `SHA256SUMS-<target>.txt` checksums - the
+  exact assets `download.sh` fetches.
 - Git flow is a reverse-PR workflow: `feat-dev`/`trunk` branches, `Source`
   remote, no direct pushes - see the `cloudflare-dev-workflow` skill.
 

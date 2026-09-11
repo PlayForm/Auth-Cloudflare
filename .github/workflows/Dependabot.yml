@@ -1,33 +1,14 @@
 # Dependabot: weekly dependency updates for the Rust workspace and GitHub Actions.
 version: 2
+enable-beta-ecosystems: true
 
 updates:
-  - package-ecosystem: cargo
+  - package-ecosystem: "cargo"
     directory: "/"
     schedule:
-      interval: weekly
-      day: monday
-      time: "06:00"
-      timezone: "Europe/Helsinki"
-    open-pull-requests-limit: 10
-    labels:
-      - dependencies
-    groups:
-      rust-deps:
-        patterns:
-          - "*"
+      interval: "weekly"
 
-  - package-ecosystem: github-actions
+  - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: weekly
-      day: monday
-      time: "06:00"
-      timezone: "Europe/Helsinki"
-    open-pull-requests-limit: 5
-    labels:
-      - dependencies
-    groups:
-      actions:
-        patterns:
-          - "*"
+      interval: "weekly"

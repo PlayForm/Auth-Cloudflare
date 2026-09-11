@@ -19,21 +19,45 @@ env:
   DO_NOT_TRACK: 1
 
 jobs:
-  build:
-    name: Build (${{ matrix.target }})
+  Release:
+    name: Release
+    if: startsWith(github.ref, 'refs/tags/Cloudflare/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      # Creates the release exactly once, before any matrix job attaches
+      # files, so the four concurrent `action-gh-release` invocations don't
+      # race to create it. No files are attached here - each Build leg
+      # attaches only its own artifacts, and Finalize verifies the result.
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  Build:
+    name: Build ${{ matrix.target }}
+    needs: Release
+    if: always() && (needs.Release.result == 'success' || needs.Release.result == 'skipped')
     runs-on: ${{ matrix.os }}
     strategy:
+      # Let every platform finish (and attach its assets) even if one leg is
+      # slow or fails. The `Finalize` job below then fails loudly if the
+      # matrix came out incomplete, so a partial upload is caught rather than
+      # silently shipped.
       fail-fast: false
       matrix:
         include:
-          - target: aarch64-apple-darwin
-            os: macos-14
-          - target: x86_64-apple-darwin
-            os: macos-14
-          - target: x86_64-unknown-linux-gnu
-            os: ubuntu-latest
-          - target: aarch64-unknown-linux-gnu
-            os: ubuntu-latest
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+          - os: macos-14
+            target: aarch64-apple-darwin
+          - os: macos-14 # x86_64 cross-compiled from the arm64 runner
+            target: x86_64-apple-darwin
+
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -54,11 +78,10 @@ jobs:
       - name: Build release binaries
         run: cargo build --release -p auth-cloudflare -p auth-hermes-cloudflare --target ${{ matrix.target }}
 
-      # Each matrix leg packages ONLY its own two tarballs. It must NOT write a
-      # shared 'SHA256SUMS' filename: all four legs would collide on it, and
-      # download-artifact's merge-multiple would keep only one target's
-      # checksums. The single release-root SHA256SUMS (with all 8 entries) is
-      # generated once in the `release` job below instead.
+      # Each matrix leg packages ONLY its own two tarballs and writes ONLY its
+      # own per-target checksum file. A shared root-level combined checksum
+      # file is never written: all four legs would collide on that filename,
+      # and download-artifact's merge-multiple would keep only one target's sums.
       - name: Package tarballs
         shell: bash
         run: |
@@ -73,6 +96,18 @@ jobs:
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "Packed auth-cloudflare-$T.tar.gz + auth-hermes-cloudflare-$T.tar.gz (v$VERSION)"
 
+      - name: Generate checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          T="${{ matrix.target }}"
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum "auth-cloudflare-$T.tar.gz" "auth-hermes-cloudflare-$T.tar.gz" > "SHA256SUMS-$T.txt"
+          else
+            shasum -a 256 "auth-cloudflare-$T.tar.gz" "auth-hermes-cloudflare-$T.tar.gz" > "SHA256SUMS-$T.txt"
+          fi
+          cat "SHA256SUMS-$T.txt"
+
       - name: Upload artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
@@ -80,43 +115,30 @@ jobs:
           path: |
             auth-cloudflare-${{ matrix.target }}.tar.gz
             auth-hermes-cloudflare-${{ matrix.target }}.tar.gz
+            SHA256SUMS-${{ matrix.target }}.txt
+          retention-days: 30
 
-  release:
-    name: Release
-    needs: build
-    if: startsWith(github.ref, 'refs/tags/Cloudflare/v')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
-        with:
-          merge-multiple: true
-          path: assets
-
-      # One SHA256SUMS over ALL downloaded tarballs (8 entries), matching what
-      # download.sh fetches as a single file at the release root.
-      - name: Generate combined SHA256SUMS
-        shell: bash
-        working-directory: assets
-        run: |
-          set -euo pipefail
-          if command -v sha256sum >/dev/null 2>&1; then
-            sha256sum auth-cloudflare-*.tar.gz auth-hermes-cloudflare-*.tar.gz > SHA256SUMS
-          else
-            shasum -a 256 auth-cloudflare-*.tar.gz auth-hermes-cloudflare-*.tar.gz > SHA256SUMS
-          fi
-          cat SHA256SUMS
-
-      - name: Create release
+      # The Release job above already created the release (exactly once);
+      # each matrix job only attaches its own files here. fail_on_unmatched_files
+      # turns a slipped rename into a loud failure instead of a silent partial release.
+      - name: Upload to release
+        if: startsWith(github.ref, 'refs/tags/Cloudflare/v')
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
         with:
-          files: assets/*
-          generate_release_notes: true
+          files: |
+            auth-cloudflare-${{ matrix.target }}.tar.gz
+            auth-hermes-cloudflare-${{ matrix.target }}.tar.gz
+            SHA256SUMS-${{ matrix.target }}.txt
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  # Runs once, only after EVERY matrix leg has finished attaching (needs: Build).
+  # Asserts all four targets' assets are present and fails loudly otherwise, so
+  # release notes can never truthfully be authored for an incomplete matrix.
   Finalize:
     name: Finalize release assets
-    needs: release
+    needs: [Build]
     if: startsWith(github.ref, 'refs/tags/Cloudflare/v')
     runs-on: ubuntu-latest
     permissions:
@@ -131,11 +153,12 @@ jobs:
           echo "Attached assets:"; echo "$assets"
           missing=0
           for t in aarch64-apple-darwin x86_64-apple-darwin x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu; do
-            echo "$assets" | grep -Fxq "auth-cloudflare-$t.tar.gz" || { echo "::error::missing auth-cloudflare-$t.tar.gz"; missing=1; }
+            echo "$assets" | grep -Fxq "auth-cloudflare-$t.tar.gz"        || { echo "::error::missing auth-cloudflare-$t.tar.gz";        missing=1; }
+            echo "$assets" | grep -Fxq "auth-hermes-cloudflare-$t.tar.gz" || { echo "::error::missing auth-hermes-cloudflare-$t.tar.gz"; missing=1; }
+            echo "$assets" | grep -Fxq "SHA256SUMS-$t.txt"                || { echo "::error::missing SHA256SUMS-$t.txt";                missing=1; }
           done
-          echo "$assets" | grep -Fxq "SHA256SUMS" || { echo "::error::missing SHA256SUMS"; missing=1; }
           if [ "$missing" -ne 0 ]; then
             echo "::error::Release matrix is incomplete - do NOT publish notes claiming a full platform set."
             exit 1
           fi
-          echo "All 4 targets present (auth-cloudflare) plus SHA256SUMS. Matrix complete."
+          echo "All 4 targets present (8 tarballs + 4 per-target checksums). Matrix complete."

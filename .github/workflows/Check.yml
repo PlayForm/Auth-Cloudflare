@@ -9,25 +9,70 @@ permissions:
 
 on:
   push:
-    branches: ["**"]
+    branches: [Current]
   pull_request:
+    branches: [Current]
+  workflow_dispatch:
+  workflow_call:
 
 env:
+  ADBLOCK: true
+  ASTRO_TELEMETRY_DISABLED: 1
+  AUTOMATEDLAB_TELEMETRY_OPTOUT: 1
+  AZURE_CORE_COLLECT_TELEMETRY: 0
   CARGO_TERM_COLOR: always
+  CHOOSENIM_NO_ANALYTICS: 1
+  DIEZ_DO_NOT_TRACK: 1
   DO_NOT_TRACK: 1
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+  DOTNET_INTERACTIVE_CLI_TELEMETRY_OPTOUT: 1
+  ET_NO_TELEMETRY: 1
+  GATSBY_TELEMETRY_DISABLED: 1
+  GATSBY_TELEMETRY_OPT_OUT: 1
+  GATSBY_TELEMETRY_OPTOUT: 1
+  GRIT_TELEMETRY_DISABLED: 1
+  HASURA_GRAPHQL_ENABLE_TELEMETRY: false
+  HINT_TELEMETRY: off
+  HOMEBREW_NO_ANALYTICS: 1
+  INFLUXD_REPORTING_DISABLED: true
+  ITERATIVE_DO_NOT_TRACK: 1
+  NEXT_TELEMETRY_DEBUG: 1
+  NEXT_TELEMETRY_DISABLED: 1
+  NG_CLI_ANALYTICS: false
+  NUXT_TELEMETRY_DISABLED: 1
+  PIN_DO_NOT_TRACK: 1
+  POWERSHELL_TELEMETRY_OPTOUT: 1
+  SAM_CLI_TELEMETRY: 0
+  STNOUPGRADE: 1
+  STRIPE_CLI_TELEMETRY_OPTOUT: 1
+  TELEMETRY_DISABLED: 1
+  TERRAFORM_TELEMETRY: 0
+  VCPKG_DISABLE_METRICS: 1
 
 jobs:
-  check:
-    name: Check / Test / Fixtures / Secrets
-    runs-on: macos-14
+  Rust:
+    name: fmt + clippy
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
 
-      - uses: dtolnay/rust-toolchain@1.96.0
+      - name: Setup Rust (stable 1.96.0)
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master (2026-07), pins to rust-toolchain.toml's 1.96.0
         with:
-          components: clippy, rustfmt
+          toolchain: 1.96.0
+          components: rustfmt, clippy
+
+      - name: Cache cargo
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: |
+            ~/.cargo/registry/
+            ~/.cargo/git/
+            target/
+          key: cargo-check-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: cargo-check-${{ runner.os }}-
 
       - name: Format
         run: cargo fmt --all --check
@@ -39,6 +84,29 @@ jobs:
         # binding from here on.
         run: cargo clippy --workspace --all-targets -- -D warnings
 
+  Test:
+    name: cargo test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+
+      - name: Setup Rust (stable 1.96.0)
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master (2026-07), pins to rust-toolchain.toml's 1.96.0
+        with:
+          toolchain: 1.96.0
+
+      - name: Cache cargo
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: |
+            ~/.cargo/registry/
+            ~/.cargo/git/
+            target/
+          key: cargo-test-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: cargo-test-${{ runner.os }}-
+
       - name: Test
         run: cargo test --workspace
 
@@ -46,6 +114,34 @@ jobs:
         run: |
           python3 -m pip install --quiet pytest
           python3 -m pytest plugins/auth-hermes-cloudflare/tests/ -q
+
+  Fixtures:
+    name: fixtures + docs + secrets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+
+      - name: Setup Rust (stable 1.96.0)
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master (2026-07), pins to rust-toolchain.toml's 1.96.0
+        with:
+          toolchain: 1.96.0
+
+      - name: Cache cargo
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: |
+            ~/.cargo/registry/
+            ~/.cargo/git/
+            target/
+          key: cargo-fixtures-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: cargo-fixtures-${{ runner.os }}-
+
+      # The catalog-export steps below run the real binary, so build it first
+      # (debug profile is enough - it only parses fixtures and prints YAML/MD).
+      - name: Build auth-cloudflare (for catalog export)
+        run: cargo build -p auth-cloudflare
 
       - name: Validate fixtures (parse + required keys)
         run: |

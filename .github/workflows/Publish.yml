@@ -5,7 +5,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write
 
 on:
   push:
@@ -18,8 +18,38 @@ on:
         default: false
 
 env:
+  ADBLOCK: true
+  ASTRO_TELEMETRY_DISABLED: 1
+  AUTOMATEDLAB_TELEMETRY_OPTOUT: 1
+  AZURE_CORE_COLLECT_TELEMETRY: 0
   CARGO_TERM_COLOR: always
+  CHOOSENIM_NO_ANALYTICS: 1
+  DIEZ_DO_NOT_TRACK: 1
   DO_NOT_TRACK: 1
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+  DOTNET_INTERACTIVE_CLI_TELEMETRY_OPTOUT: 1
+  ET_NO_TELEMETRY: 1
+  GATSBY_TELEMETRY_DISABLED: 1
+  GATSBY_TELEMETRY_OPT_OUT: 1
+  GATSBY_TELEMETRY_OPTOUT: 1
+  GRIT_TELEMETRY_DISABLED: 1
+  HASURA_GRAPHQL_ENABLE_TELEMETRY: false
+  HINT_TELEMETRY: off
+  HOMEBREW_NO_ANALYTICS: 1
+  INFLUXD_REPORTING_DISABLED: true
+  ITERATIVE_DO_NOT_TRACK: 1
+  NEXT_TELEMETRY_DEBUG: 1
+  NEXT_TELEMETRY_DISABLED: 1
+  NG_CLI_ANALYTICS: false
+  NUXT_TELEMETRY_DISABLED: 1
+  PIN_DO_NOT_TRACK: 1
+  POWERSHELL_TELEMETRY_OPTOUT: 1
+  SAM_CLI_TELEMETRY: 0
+  STNOUPGRADE: 1
+  STRIPE_CLI_TELEMETRY_OPTOUT: 1
+  TELEMETRY_DISABLED: 1
+  TERRAFORM_TELEMETRY: 0
+  VCPKG_DISABLE_METRICS: 1
 
 jobs:
   Test:
@@ -45,6 +75,8 @@ jobs:
           key: cargo-test-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: cargo-test-${{ runner.os }}-
 
+      # Scope to the crates we actually publish (auth-cloudflare,
+      # auth-hermes-cloudflare).
       - name: Cargo test
         run: cargo test -p auth-cloudflare -p auth-hermes-cloudflare --release
 
@@ -72,6 +104,9 @@ jobs:
             target/
           key: cargo-publish-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: cargo-publish-${{ runner.os }}-
+
+      - name: Build release
+        run: cargo build --release -p auth-cloudflare
 
       # crates.io publishing is strictly opt-in: a plain `Cloudflare/v*` tag
       # push does NOT publish to crates.io (that tag only triggers Build.yml's
@@ -121,6 +156,9 @@ jobs:
             target/
           key: cargo-publish-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: cargo-publish-${{ runner.os }}-
+
+      - name: Build release
+        run: cargo build --release -p auth-hermes-cloudflare
 
       # auth-hermes-cloudflare path-depends on auth-cloudflare (version 0.0.1),
       # and `cargo publish` strips the path key, so it can only publish once a

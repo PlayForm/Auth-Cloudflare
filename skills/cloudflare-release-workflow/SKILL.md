@@ -17,7 +17,8 @@ metadata:
 > Tag format is `Cloudflare/v<semver>` (e.g. `Cloudflare/v0.1.0`) - the
 > `Build.yml` workflow triggers on `Cloudflare/v*` and attaches per-target
 > `auth-cloudflare-<target>.tar.gz` + `auth-hermes-cloudflare-<target>.tar.gz`
-> assets plus a single `SHA256SUMS`. Never use a bare `v*` tag.
+> assets plus a per-target `SHA256SUMS-<target>.txt` checksum file. Never use
+> a bare `v*` tag.
 
 ## Release checklist
 
