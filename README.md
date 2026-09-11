@@ -353,7 +353,9 @@ Supported:
 
 Not supported in this release:
 
-- Cloudflare AI Gateway third-party models.
+- Cloudflare AI Gateway third-party models (partial: Workers AI
+  `auth-cloudflare-workers-ai` works end-to-end; the AI Gateway adapter
+  `auth-cloudflare-ai-gateway` is parked until explicitly re-opened).
 - Anthropic Messages, Gemini-native, or provider-specific API protocols.
 - Image, video, embedding, speech, reranking, or safety-only models as
   the primary Hermes agent.
