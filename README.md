@@ -99,7 +99,7 @@ hermes cloudflare doctor                # same report through the plugin CLI
 
 ```sh
 git clone https://github.com/PlayForm/Auth-Cloudflare.git
-cd Cloudflare
+cd Auth-Cloudflare
 git submodule update --init --recursive
 cargo build --release -p auth-cloudflare -p auth-hermes-cloudflare
 ```
@@ -204,12 +204,12 @@ Four steps:
 **`Layout`**
 
 ```text
-crates/auth-cloudflare/          ← Core: auth, catalog, cache (cdylib + rlib)
+crates/auth-cloudflare/          ← Core: auth, catalog, cache (lib + engine CLI)
   auth.rs                        ← account/token resolution → endpoint construction
   catalog.rs                     ← ModelRecord, ModelRole, CapabilityState
   cache.rs                       ← account-scoped cache paths
 
-crates/auth-hermes-cloudflare/   ← Hermes integration (cdylib + rlib)
+crates/auth-hermes-cloudflare/   ← Hermes integration (lib + utility CLI)
   lib.rs                         ← re-exports core types for tool schemas/hooks
 
 plugins/auth-hermes-cloudflare/  ← Hermes plugin (submodule → Auth-Hermes-Cloudflare)
