@@ -1,13 +1,13 @@
 {
-	"id": "@cf/zai-org/glm-5.3-flash",
-	"name": "GLM-5.3 Flash",
-	"vendor_name": "Z.ai (Zhipu AI)",
-	"description": "GLM-5.3 Flash - tool-capable general model hosted by Cloudflare Workers AI. Experimental: observed delivery failures, requires passing conformance suite.",
-	"context_length": 131072,
-	"created": 1788800000,
-	"pricing": {
-		"prompt": "0.0000002",
-		"completion": "0.0000006",
-		"request": "0"
-	}
+  "id": "@cf/zai-org/glm-5.3-flash",
+  "name": "GLM-5.3 Flash",
+  "vendor_name": "Z.ai (Zhipu AI)",
+  "description": "GLM-5.3 Flash - tool-capable general model hosted by Cloudflare Workers AI. Experimental: observed delivery failures, requires passing conformance suite.",
+  "context_length": 131072,
+  "created": 1788800000,
+  "pricing": {
+    "prompt": "0.0000002",
+    "completion": "0.0000006",
+    "request": "0"
+  }
 }

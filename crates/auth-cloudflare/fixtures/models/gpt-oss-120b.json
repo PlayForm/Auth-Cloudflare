@@ -1,13 +1,13 @@
 {
-	"id": "@cf/openai/gpt-oss-120b",
-	"name": "GPT-OSS 120B",
-	"vendor_name": "OpenAI",
-	"description": "GPT-OSS 120B - open-weight general model hosted by Cloudflare Workers AI.",
-	"context_length": 128000,
-	"created": 1788800000,
-	"pricing": {
-		"prompt": "0.0000006",
-		"completion": "0.0000018",
-		"request": "0"
-	}
+  "id": "@cf/openai/gpt-oss-120b",
+  "name": "GPT-OSS 120B",
+  "vendor_name": "OpenAI",
+  "description": "GPT-OSS 120B - open-weight general model hosted by Cloudflare Workers AI.",
+  "context_length": 128000,
+  "created": 1788800000,
+  "pricing": {
+    "prompt": "0.0000006",
+    "completion": "0.0000018",
+    "request": "0"
+  }
 }

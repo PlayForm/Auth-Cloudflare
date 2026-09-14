@@ -1,13 +1,13 @@
 {
-	"id": "@cf/deepseek-ai/deepseek-v4-flash-0731",
-	"name": "DeepSeek V4 Flash (070731)",
-	"vendor_name": "DeepSeek",
-	"description": "DeepSeek V4 Flash - fast, tool-capable coding agent model hosted by Cloudflare Workers AI. The project's development default.",
-	"context_length": 1310720,
-	"created": 1788800000,
-	"pricing": {
-		"prompt": "0.00000044",
-		"completion": "0.00000132",
-		"request": "0"
-	}
+  "id": "@cf/deepseek-ai/deepseek-v4-flash-0731",
+  "name": "DeepSeek V4 Flash (070731)",
+  "vendor_name": "DeepSeek",
+  "description": "DeepSeek V4 Flash - fast, tool-capable coding agent model hosted by Cloudflare Workers AI. The project's development default.",
+  "context_length": 1310720,
+  "created": 1788800000,
+  "pricing": {
+    "prompt": "0.00000044",
+    "completion": "0.00000132",
+    "request": "0"
+  }
 }

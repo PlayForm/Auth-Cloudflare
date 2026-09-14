@@ -1,74 +1,68 @@
 {
-	"schema_version": 1,
-	"task_id": "ci-quality-gates-v1",
-	"status": "complete",
-	"timestamp": "2026-09-09T17:04:02Z",
-	"files": {
-		"added": [
-			".github/workflows/Dependabot.yml",
-			"CHANGE_REPORT.json"
-		],
-		"modified": [
-			".github/workflows/Check.yml",
-			".github/workflows/Build.yml"
-		],
-		"deleted": []
-	},
-	"public_api": {
-		"breaking_changes": false,
-		"added_types": [],
-		"removed_types": []
-	},
-	"validation": [
-		{
-			"command": "cargo fmt --all --check",
-			"status": "passed",
-			"details": "no formatting diffs"
-		},
-		{
-			"command": "cargo clippy --workspace --all-targets",
-			"status": "passed",
-			"details": "0 errors, 9 pre-existing warnings (catalog.rs/cache.rs); -D warnings deferred"
-		},
-		{
-			"command": "cargo test --workspace",
-			"status": "passed",
-			"details": "exit 0; lib + CLI suites green"
-		},
-		{
-			"command": "cargo build --release -p auth-cloudflare -p auth-hermes-cloudflare",
-			"status": "passed",
-			"details": "auth-cloudflare binary + libauth_hermes_cloudflare dylib produced"
-		},
-		{
-			"command": "fixtures validation (python3)",
-			"status": "passed",
-			"details": "5/5 fixtures parse; required keys present per fixture class"
-		},
-		{
-			"command": "secret scan (grep)",
-			"status": "passed",
-			"details": "no literal cfut_/cfwt_/Bearer/API-key values in crates/ plugins/ skills/ .github/"
-		},
-		{
-			"command": "python3 -m json.tool CHANGE_REPORT.json",
-			"status": "passed",
-			"details": "valid JSON"
-		},
-		{
-			"command": "yaml.safe_load on workflows",
-			"status": "passed",
-			"details": "Check.yml, Build.yml, Dependabot.yml parse"
-		}
-	],
-	"security": {
-		"secret_scan": "passed",
-		"token_persistence": false,
-		"network_calls_in_tests": false
-	},
-	"known_limitations": [
-		"Clippy -D warnings strict gating deferred until pre-existing warnings in catalog.rs/cache.rs are cleared",
-		"auth-hermes-cloudflare ships its [[bin]] executable in releases (cdylib/dylib packaging removed)",
-		"Dependabot version updates land as PRs; merge policy not automated"
-	]
+  "schema_version": 1,
+  "task_id": "ci-quality-gates-v1",
+  "status": "complete",
+  "timestamp": "2026-09-09T17:04:02Z",
+  "files": {
+    "added": [".github/workflows/Dependabot.yml", "CHANGE_REPORT.json"],
+    "modified": [".github/workflows/Check.yml", ".github/workflows/Build.yml"],
+    "deleted": []
+  },
+  "public_api": {
+    "breaking_changes": false,
+    "added_types": [],
+    "removed_types": []
+  },
+  "validation": [
+    {
+      "command": "cargo fmt --all --check",
+      "status": "passed",
+      "details": "no formatting diffs"
+    },
+    {
+      "command": "cargo clippy --workspace --all-targets",
+      "status": "passed",
+      "details": "0 errors, 9 pre-existing warnings (catalog.rs/cache.rs); -D warnings deferred"
+    },
+    {
+      "command": "cargo test --workspace",
+      "status": "passed",
+      "details": "exit 0; lib + CLI suites green"
+    },
+    {
+      "command": "cargo build --release -p auth-cloudflare -p auth-hermes-cloudflare",
+      "status": "passed",
+      "details": "auth-cloudflare binary + libauth_hermes_cloudflare dylib produced"
+    },
+    {
+      "command": "fixtures validation (python3)",
+      "status": "passed",
+      "details": "5/5 fixtures parse; required keys present per fixture class"
+    },
+    {
+      "command": "secret scan (grep)",
+      "status": "passed",
+      "details": "no literal cfut_/cfwt_/Bearer/API-key values in crates/ plugins/ skills/ .github/"
+    },
+    {
+      "command": "python3 -m json.tool CHANGE_REPORT.json",
+      "status": "passed",
+      "details": "valid JSON"
+    },
+    {
+      "command": "yaml.safe_load on workflows",
+      "status": "passed",
+      "details": "Check.yml, Build.yml, Dependabot.yml parse"
+    }
+  ],
+  "security": {
+    "secret_scan": "passed",
+    "token_persistence": false,
+    "network_calls_in_tests": false
+  },
+  "known_limitations": [
+    "Clippy -D warnings strict gating deferred until pre-existing warnings in catalog.rs/cache.rs are cleared",
+    "auth-hermes-cloudflare ships its [[bin]] executable in releases (cdylib/dylib packaging removed)",
+    "Dependabot version updates land as PRs; merge policy not automated"
+  ]
 }

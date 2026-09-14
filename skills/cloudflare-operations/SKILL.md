@@ -6,8 +6,8 @@ author: PlayForm
 license: CC0-1.0
 platforms: [linux, macos, windows]
 metadata:
-  hermes:
-    tags: [cloudflare, workers-ai, provider, hermes-plugin, catalog]
+    hermes:
+        tags: [cloudflare, workers-ai, provider, hermes-plugin, catalog]
 ---
 
 # Cloudflare Workers AI - Operations
@@ -18,12 +18,12 @@ plugin registers the `cloudflare` provider (aliases: `cloudflare-ai`,
 
 ## Endpoints (the plugin owns this routing)
 
-| Route | Purpose |
-| :--- | :--- |
-| `POST /client/v4/accounts/<ACCOUNT_ID>/ai/v1/chat/completions` | Inference (OpenAI-compatible) |
-| `GET  /client/v4/accounts/<ACCOUNT_ID>/ai/models/search?format=openrouter&per_page=1000` | Account catalog |
-| `GET  /client/v4/user/tokens/verify` | Token health check |
-| `POST /client/v4/accounts/<ACCOUNT_ID>/ai/run/<model>` | Native REST (not used by the plugin) |
+| Route                                                                                    | Purpose                              |
+| :--------------------------------------------------------------------------------------- | :----------------------------------- |
+| `POST /client/v4/accounts/<ACCOUNT_ID>/ai/v1/chat/completions`                           | Inference (OpenAI-compatible)        |
+| `GET  /client/v4/accounts/<ACCOUNT_ID>/ai/models/search?format=openrouter&per_page=1000` | Account catalog                      |
+| `GET  /client/v4/user/tokens/verify`                                                     | Token health check                   |
+| `POST /client/v4/accounts/<ACCOUNT_ID>/ai/run/<model>`                                   | Native REST (not used by the plugin) |
 
 ## Environment
 
@@ -48,14 +48,14 @@ prefixes in staged diffs.
 
 ## Troubleshooting
 
-| Symptom | Cause | Fix |
-| :--- | :--- | :--- |
-| `hermes model` shows no Cloudflare models | `CLOUDFLARE_API_TOKEN` unset | Export the token; restart gateway |
-| Catalog returns error 7003 | `CLOUDFLARE_ACCOUNT_ID` unset/empty → malformed URL | Export the account ID |
-| HTTP 403 on inference | Token lacks Cloudflare Workers AI Write | Re-scope the token |
-| HTTP 401 | Token expired/revoked | Roll the token |
-| Model not in picker | Non-chat or safety model | Filtered by design; use chat models |
-| `.../ai/v1/models` 404 in logs | Hermes default probe | Expected - plugin sets `supports_health_check=False` |
+| Symptom                                   | Cause                                               | Fix                                                  |
+| :---------------------------------------- | :-------------------------------------------------- | :--------------------------------------------------- |
+| `hermes model` shows no Cloudflare models | `CLOUDFLARE_API_TOKEN` unset                        | Export the token; restart gateway                    |
+| Catalog returns error 7003                | `CLOUDFLARE_ACCOUNT_ID` unset/empty → malformed URL | Export the account ID                                |
+| HTTP 403 on inference                     | Token lacks Cloudflare Workers AI Write             | Re-scope the token                                   |
+| HTTP 401                                  | Token expired/revoked                               | Roll the token                                       |
+| Model not in picker                       | Non-chat or safety model                            | Filtered by design; use chat models                  |
+| `.../ai/v1/models` 404 in logs            | Hermes default probe                                | Expected - plugin sets `supports_health_check=False` |
 
 ## Testing the provider
 
@@ -74,7 +74,7 @@ curl -sS "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/a
 
 - Install the debug build to `~/.hermes/bin/auth-cloudflare` (canonical locator
   path, checked before plugin `bin/`): `cp target/debug/auth-cloudflare
-  ~/.hermes/bin/ && chmod +x` - reinstall after every `cargo build` so doctor/
+~/.hermes/bin/ && chmod +x` - reinstall after every `cargo build` so doctor/
   verify commands carry new features.
 - Once the binary exists, `cloudflare_doctor`/`fetch_models` go binary-first:
   the python direct-HTTP fallback is only used when the locator returns None.
@@ -83,7 +83,7 @@ curl -sS "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/a
   → None in setUp, or they break with KeyError on the captured request.
 - `_run_binary_json` relays the binary's diagnostic JSON on non-zero exit
   (sets `exit_code`); a missing account id surfaces as `account_id:
-  configured:false` + `exit_code: 2`, never a bare "exited with code 2".
+configured:false` + `exit_code: 2`, never a bare "exited with code 2".
 - Plain `hermes` (default profile) has no account env → binary doctor exits 2
   by contract; use the dev-cloudflare profile wrapper or export
   AUTH_CLOUDFLARE_ACCOUNT_ID.

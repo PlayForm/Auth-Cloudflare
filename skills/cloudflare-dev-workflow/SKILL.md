@@ -6,8 +6,8 @@ author: PlayForm
 license: CC0-1.0
 platforms: [linux, macos]
 metadata:
-  hermes:
-    tags: [git, workflow, cloudflare, plugin]
+    hermes:
+        tags: [git, workflow, cloudflare, plugin]
 ---
 
 # Cloudflare plugin - Git workflow
