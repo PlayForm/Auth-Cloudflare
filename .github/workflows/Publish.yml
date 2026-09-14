@@ -6,6 +6,7 @@ concurrency:
 
 permissions:
   contents: write
+  id-token: write # crates.io trusted publishing (OIDC)
 
 on:
   push:
@@ -126,11 +127,15 @@ jobs:
             echo "published=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Get crates.io publish token (trusted publishing)
+        uses: rust-lang/crates-io-auth-action@v1
+        id: auth
+
       - name: Publish auth-cloudflare to crates.io (opt-in)
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_crates && steps.check.outputs.published == 'false' }}
         run: cargo publish -p auth-cloudflare --no-verify
         env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
 
   Publish-auth-hermes-cloudflare:
     name: Publish auth-hermes-cloudflare
@@ -160,9 +165,9 @@ jobs:
       - name: Build release
         run: cargo build --release -p auth-hermes-cloudflare
 
-      # auth-hermes-cloudflare path-depends on auth-cloudflare (version 0.0.1),
+      # auth-hermes-cloudflare path-depends on auth-cloudflare (version 0.0.2),
       # and `cargo publish` strips the path key, so it can only publish once a
-      # matching auth-cloudflare 0.0.1 is live on crates.io (published by the
+      # matching auth-cloudflare 0.0.2 is live on crates.io (published by the
       # preceding Publish-auth-cloudflare job). Opt-in semantics and the
       # index-version skip are the same as above.
       - name: Check if auth-hermes-cloudflare version is already published
@@ -177,8 +182,12 @@ jobs:
             echo "published=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Get crates.io publish token (trusted publishing)
+        uses: rust-lang/crates-io-auth-action@v1
+        id: auth
+
       - name: Publish auth-hermes-cloudflare to crates.io (opt-in)
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_crates && steps.check.outputs.published == 'false' }}
         run: cargo publish -p auth-hermes-cloudflare --no-verify
         env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
