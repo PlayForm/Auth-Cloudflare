@@ -14,8 +14,8 @@ use serde::{Deserialize, Serialize};
 /// Curated fallback catalog - the account-verified 27 Cloudflare-hosted Workers AI chat
 /// models, filtered to a practical coding/tool set (minus `llama-guard-3-8b`).
 ///
-/// ORDER IS POLICY: DeepSeek V4 Flash is the development default (feedback
-/// 01); GLM-5.3 Flash is experimental and intentionally NOT in the default
+/// ORDER IS POLICY: DeepSeek V4 Flash is the development default;
+/// GLM-5.3 Flash is experimental and intentionally NOT in the default
 /// position (delivery reliability not yet validated).
 pub const FALLBACK_MODELS: &[&str] = &[
 	"@cf/deepseek-ai/deepseek-v4-flash-0731",
@@ -42,7 +42,7 @@ pub const FALLBACK_MODELS: &[&str] = &[
 	"@cf/qwen/qwq-32b",
 ];
 
-/// Models currently marked experimental by project policy (feedback 01/02).
+/// Models currently marked experimental by project policy.
 /// Delivery conformance below threshold - selectable, never the default.
 pub const EXPERIMENTAL_MODELS: &[&str] = &["@cf/zai-org/glm-5.3-flash", "@cf/zai-org/glm-5.3"];
 
@@ -109,7 +109,7 @@ pub enum Availability {
 	Routed,
 }
 
-/// Picker visibility policy for a model (feedback 01/02).
+/// Picker visibility policy for a model.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Visibility {
@@ -162,7 +162,7 @@ impl Default for ModelCapabilities {
 	}
 }
 
-/// Per-million-token pricing (normalized to USD, per feedback 01 contract).
+/// Per-million-token pricing (normalized to USD).
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct PricingPerMillion {
@@ -188,7 +188,7 @@ pub struct ModelProtocol {
 	pub request_path: String,
 }
 
-/// Where each capability/field fact came from (feedback 02 provenance).
+/// Where each capability/field fact came from (provenance).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct CapabilityProvenance {

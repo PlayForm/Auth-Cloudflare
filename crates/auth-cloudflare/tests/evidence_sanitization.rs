@@ -1,7 +1,7 @@
-//! Integration tests for `FailureEvidence` sanitization (feedback 02
-//! security contract): excerpt capping at 512 chars (char-safe), serde
-//! roundtrip, `deny_unknown_fields`, and a serialized payload that can
-//! never carry token/authorization/secret content.
+//! Integration tests for `FailureEvidence` sanitization under the security
+//! contract: excerpt capping at 512 chars (char-safe), serde roundtrip,
+//! `deny_unknown_fields`, and a serialized payload that can never carry
+//! token/authorization/secret content.
 //!
 //! Zero network and zero secrets: all inputs are synthetic.
 

@@ -1,6 +1,6 @@
 //! Capabilities - marker-based capability inference from a model id.
 //!
-//! The three-state contract (feedback 01/05) forbids encoding incomplete
+//! The three-state contract forbids encoding incomplete
 //! metadata as `Unsupported`: only a positive safety marker yields
 //! `Unsupported`, and only a positive tool-family marker yields `Confirmed`.
 //! Every other verdict stays `Unknown` - absence of evidence is never
@@ -8,7 +8,7 @@
 
 use crate::catalog::{CapabilityState, ModelCapabilities};
 
-/// Tool-capable model families, per Cloudflare docs/schema (feedback 01/02).
+/// Tool-capable model families, per Cloudflare docs/schema.
 /// Family-level markers: each matches every released variant of the family
 /// (e.g. `glm-5` covers glm-5.2, glm-5.3, glm-5.3-flash).
 const TOOL_CAPABLE_FAMILIES: &[&str] = &[

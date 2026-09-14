@@ -1,6 +1,6 @@
 //! Policy - status, rank, and primary-agent eligibility for known models.
 //!
-//! This module owns the bundled policy record (feedback 01/02/05/06): the
+//! This module owns the bundled policy record: the
 //! status, rank, default flag, and primary-agent eligibility of every model
 //! the project has an explicit opinion about. Unknown models default to
 //! `Available`; the policy never claims a model is ineligible unless a
@@ -13,10 +13,10 @@ use crate::catalog::{ModelRecord, ModelRole, PricingPerMillion};
 use crate::health::{ModelVerification, VerificationStatus};
 use crate::{DEFAULT_MODEL, EXPERIMENTAL_MODEL, PREMIUM_CODING_MODEL, PREMIUM_REASONING_MODEL};
 
-/// Version of the bundled default policy document (feedback 02 YAML `version: 1`).
+/// Version of the bundled default policy document (YAML `version: 1`).
 pub const POLICY_VERSION: &str = "1";
 
-/// Picker status for a model (feedback 02 status vocabulary).
+/// Picker status for a model (status vocabulary).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ModelStatus {
@@ -74,7 +74,7 @@ impl Default for ModelPolicy {
 }
 
 impl ModelPolicy {
-	/// Bundled default policy (feedback 01/05/06):
+	/// Bundled default policy:
 	/// DeepSeek V4 Flash recommended/default, GLM-5.3 Flash experimental,
 	/// Llama Guard 3 8B hidden and never primary-agent eligible.
 	pub fn default_policy() -> Self {
@@ -194,7 +194,7 @@ impl ModelPolicy {
 }
 
 /// Weight of the recent-delivery component in the provider ranking score
-/// (feedback 02: score = 0.40R + 0.25T + 0.15C + 0.10L + 0.10P).
+/// (score = 0.40R + 0.25T + 0.15C + 0.10L + 0.10P).
 pub const WEIGHT_DELIVERY: f64 = 0.40;
 /// Weight of the multi-turn tool-loop conformance component.
 pub const WEIGHT_TOOL_LOOP: f64 = 0.25;
@@ -216,7 +216,7 @@ pub const REFERENCE_PRICE_PER_MILLION: f64 = 10.0;
 
 /// Evidence breakdown for one model's [`ranking_score`] - the picker renders
 /// one line per component from this struct, so every ranking decision is
-/// explainable (feedback 02 evidence lines).
+/// explainable (evidence lines).
 ///
 /// The component fields hold the same normalized 0..1 scores used by
 /// [`ranking_score`]: the weighted dot product of components × weights IS
@@ -271,8 +271,7 @@ impl RankingBreakdown {
 	}
 }
 
-/// Provider ranking score (feedback 02: score = 0.40R + 0.25T + 0.15C +
-/// 0.10L + 0.10P).
+/// Provider ranking score (score = 0.40R + 0.25T + 0.15C + 0.10L + 0.10P).
 ///
 /// Returns `None` - and therefore NEVER outranks anything - when:
 ///
@@ -358,7 +357,7 @@ mod tests {
 	use super::*;
 
 	#[test]
-	fn defaults_match_feedback() {
+	fn defaults_match_policy() {
 		let policy = ModelPolicy::default_policy();
 		let deepseek = policy
 			.models

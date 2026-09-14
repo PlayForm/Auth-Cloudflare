@@ -1,6 +1,6 @@
 //! Integration tests: the bundled OpenRouter-format model fixtures must
 //! normalize through the PUBLIC `ModelRecord::from_openrouter` path exactly
-//! as the real `/ai/models/search` entries do (feedback 03 shape).
+//! as the real `/ai/models/search` entries do.
 //!
 //! Zero network: every fixture is embedded with `include_str!` and parsed
 //! in memory. The six fixtures exercise the policy statuses the picker

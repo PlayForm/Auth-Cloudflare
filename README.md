@@ -217,7 +217,6 @@ plugins/auth-hermes-cloudflare/  ← Hermes plugin (submodule → Auth-Hermes-Cl
 
 profiles/dev-cloudflare/         ← working Hermes profile (provider block)
 skills/                          ← cloudflare-* skills
-.playform/                        ← plan + development conversation archive
 ```
 
 | Route                                                 | Purpose                                         |

@@ -1,6 +1,6 @@
 //! Integration tests for the PUBLIC tool-loop validators - the pure,
 //! deterministic acceptance machinery behind the multi-turn conformance
-//! harness (feedback 02 suite 40). Zero network: no model is called; only
+//! harness (suite 40). Zero network: no model is called; only
 //! the ordering, duplicate, argument-schema, and schema-generation checks
 //! are exercised with synthetic observations.
 

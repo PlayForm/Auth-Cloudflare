@@ -5,8 +5,8 @@ use std::fmt;
 use thiserror::Error;
 
 /// The scope classification of an authentication/authorization rejection,
-/// derived from the Cloudflare error envelope (feedback 01: invalid token vs
-/// wrong account scope vs Workers AI permission are distinct, actionable
+/// derived from the Cloudflare error envelope (invalid token vs wrong
+/// account scope vs Workers AI permission are distinct, actionable
 /// failures, never collapsed into a generic auth error).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AuthScope {
@@ -46,7 +46,7 @@ pub enum CloudflareError {
 	Api { code: u32, message: String },
 
 	/// An authentication/authorization rejection classified by scope
-	/// (feedback 01): [`AuthScope::InvalidToken`] vs
+	/// ([`AuthScope::InvalidToken`] vs
 	/// [`AuthScope::WrongAccountScope`] vs [`AuthScope::WorkersAiPermission`]
 	/// are distinct, actionable failures. `message` is always token-scrubbed
 	/// before it reaches this variant.

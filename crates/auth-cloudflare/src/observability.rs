@@ -1,13 +1,13 @@
 //! Observability - opt-in, local-first structured event logging and
 //! secret-safe protocol redaction.
 //!
-//! Feedback 03 "Observability" contract: no invasive telemetry by default.
+//! Observability is opt-in: no invasive telemetry by default.
 //! This module is **disabled by default**: [`EventLog::from_env`] returns a
 //! no-op log unless `AUTH_CLOUDFLARE_OBSERVABILITY=1`. When enabled, events
 //! are appended as one JSON object per line (JSONL) to a local file - never
 //! shipped anywhere, never read back by this crate.
 //!
-//! # Privacy invariants (binding)
+//! # Privacy invariants
 //!
 //! - The standard event log **never** stores prompt content or full tool
 //!   output. [`Event`] carries only request metadata (model id, counts,

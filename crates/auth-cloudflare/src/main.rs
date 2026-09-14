@@ -1,5 +1,5 @@
-//! auth-cloudflare - the CLI binary contract (feedback 06 JSON shapes,
-//! feedback 02 exit codes 0-7).
+//! auth-cloudflare - the CLI binary contract (JSON shapes,
+//! exit codes 0-7).
 //!
 //! Commands:
 //!
@@ -30,10 +30,9 @@
 //! Security contract: the API token is only ever held by the core's
 //! `SecretString` and flows exclusively into the `Authorization: Bearer ***
 //! header of the catalog GET; this binary never prints, logs, or serializes
-//! it. Doctor emits a redacted account id (`624acc…9f84` pattern, feedback
-//! 06) and exits 7 when the user config file contains an `api_token` VALUE
-//! (the config file may only name the env var holding the token - feedback
-//! 02).
+//! it. Doctor emits a redacted account id (`624acc…9f84` pattern) and exits 7 when the user
+//! config file contains an `api_token` VALUE (the config file may only name
+//! the env var holding the token).
 
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -85,13 +84,13 @@ const EXIT_CONFORMANCE: i32 = 6;
 const EXIT_UNSAFE_CONFIG: i32 = 7;
 
 /// How old a cached catalog may be before `catalog get` reports it stale
-/// (and exits 4 - stale cache successfully used, feedback 02).
+/// (and exits 4 - stale cache successfully used).
 const CACHE_MAX_AGE: Duration = Duration::from_secs(6 * 3600);
 
 /// Per-request budget for one live tool-loop run (ureq agent timeout).
 const TOOL_LOOP_TIMEOUT: Duration = Duration::from_secs(90);
 
-/// Canonical env vars (config.rs contract, feedback 03/06).
+/// Canonical env vars (config.rs contract).
 const ACCOUNT_ID_ENV: &str = "AUTH_CLOUDFLARE_ACCOUNT_ID";
 const API_TOKEN_ENV: &str = "AUTH_CLOUDFLARE_API_TOKEN";
 const BASE_URL_ENV: &str = "AUTH_CLOUDFLARE_WORKERS_AI_BASE_URL";
@@ -124,7 +123,7 @@ Usage:
   auth-cloudflare policy get [--format json]
   auth-cloudflare help
 
-Exit codes (feedback 02, binding):
+Exit codes:
   0 success
   1 operational error (malformed args, I/O, unexpected failure)
   2 credentials missing or invalid
@@ -134,7 +133,7 @@ Exit codes (feedback 02, binding):
   6 conformance suite ran but failed acceptance criteria
   7 unsafe configuration / secret-leak risk detected
 
-Environment (core precedence, feedback 03/06):
+Environment (core precedence):
   AUTH_CLOUDFLARE_ACCOUNT_ID, AUTH_CLOUDFLARE_API_TOKEN,
   AUTH_CLOUDFLARE_WORKERS_AI_BASE_URL, AUTH_CLOUDFLARE_CACHE_DIR,
   AUTH_CLOUDFLARE_CONFIG, AUTH_CLOUDFLARE_EXPORT_DIR (export target dir)
@@ -384,7 +383,7 @@ fn emit_json(out: &mut dyn Write, err: &mut dyn Write, value: &serde_json::Value
 // version
 // ---------------------------------------------------------------------------
 
-/// Feedback-06 version contract - `VersionInfo::current()` serialized.
+/// Version command output - `VersionInfo::current()` serialized.
 fn version_json() -> (i32, serde_json::Value) {
 	(
 		EXIT_OK,
@@ -396,12 +395,12 @@ fn version_json() -> (i32, serde_json::Value) {
 // doctor
 // ---------------------------------------------------------------------------
 
-/// Feedback-06 doctor contract - never performs a network or paid inference
-/// request (feedback 03). The token value never appears anywhere in the
-/// output; account id is redacted as `624acc…9f84` (feedback 06).
+/// Doctor - never performs a network or paid inference request. The token
+/// value never appears anywhere in the output; account id is redacted as
+/// `624acc…9f84`.
 ///
 /// Exit codes: 0 ok · 2 credentials missing/invalid · 7 unsafe config
-/// (config file carries an `api_token` VALUE - feedback 02 forbids that).
+/// (the config file must not carry an `api_token` VALUE).
 fn doctor_json() -> (i32, serde_json::Value) {
 	let resolved = resolve_config();
 	let account_id = resolved.account_id.clone();
@@ -556,7 +555,7 @@ fn hermes_home() -> PathBuf {
 }
 
 /// True when the user config file carries an `api_token` VALUE. The config
-/// file may only name the env var holding the token (feedback 02); a literal
+/// file may only name the env var holding the token; a literal
 /// secret value in the file is an unsafe-config/secret-leak risk (exit 7).
 fn detect_unsafe_config(path: &Path) -> bool {
 	let Ok(raw) = std::fs::read_to_string(path) else {
@@ -572,7 +571,7 @@ fn detect_unsafe_config(path: &Path) -> bool {
 }
 
 /// Redact an account id as first-6 chars + ellipsis + last-4 chars
-/// (`624acc…9f84` pattern, feedback 06). The account id is operational
+/// (`624acc…9f84` pattern). The account id is operational
 /// metadata, not a secret - this is display hygiene for the endpoint URL.
 fn redact_account_id(id: &str) -> String {
 	let chars: Vec<char> = id.chars().collect();
@@ -611,7 +610,7 @@ fn cache_age_seconds(meta: &CatalogCacheMeta) -> u64 {
 struct ResolvedCatalog {
 	/// `live` | `cache` | `fallback` - where the records came from.
 	source: &'static str,
-	/// `fresh` | `stale` | `none` (feedback 06 `cache_status`).
+	/// `fresh` | `stale` | `none` (`cache_status`).
 	cache_status: &'static str,
 	/// RFC 3339 timestamp: the cache's `fetched_at`, fetch time for live, or
 	/// now for fallback.
@@ -740,7 +739,7 @@ fn display_name_from_id(id: &str) -> String {
 		.join(" ")
 }
 
-/// The feedback-06 per-model object shared by `catalog get`, `catalog
+/// The per-model object shared by `catalog get`, `catalog
 /// refresh`, and `model inspect`: id, display_name, status,
 /// primary_agent_eligible, context_tokens, pricing_per_million {input,
 /// cached_input, output}, capabilities {chat, tools, reasoning}.
@@ -764,7 +763,7 @@ fn model_json(record: &ModelRecord, policy: &ModelPolicy) -> serde_json::Value {
 	})
 }
 
-/// The feedback-06 catalog envelope: schema_version, source, fetched_at,
+/// The catalog envelope: schema_version, source, fetched_at,
 /// cache_status, default_model, model_count, experimental_included,
 /// deprecated_included, models. Used by `catalog get` (provenance
 /// source `live`|`cache`|`fallback`) and `catalog refresh` (source
@@ -794,7 +793,7 @@ fn catalog_document(
 // catalog get / list / refresh / diff / export, model inspect, policy get
 // ---------------------------------------------------------------------------
 
-/// Feedback-06 `catalog get` envelope. Cache-first: exit 0 fresh/live/
+/// `catalog get` envelope. Cache-first: exit 0 fresh/live/
 /// fallback, exit 4 when the cache is stale (live API unavailable, stale
 /// cache successfully used). A live fetch is attempted only when no usable
 /// cache exists; on live failure the bundled fallback is served (exit 0,
@@ -857,7 +856,7 @@ fn catalog_refresh_json(fetch: FetchCatalog, err: &mut dyn Write) -> (i32, serde
 			let records = records_from_payload(&payload);
 			if records.is_empty() {
 				// A live payload with no usable records is a remote failure
-				// (invalid model payload - feedback 01 taxonomy).
+				// (invalid model payload).
 				return refresh_failure(&CloudflareError::NoDataArray, &cache_dir, err);
 			}
 			let fetched_at = chrono::Utc::now().to_rfc3339();
@@ -884,9 +883,8 @@ fn catalog_refresh_json(fetch: FetchCatalog, err: &mut dyn Write) -> (i32, serde
 }
 
 /// Shared refresh failure path: serve the account cache when one exists
-/// (exit 4 when stale - "stale cache successfully used", feedback 02 exit
-/// table; exit 0 when the cache is still fresh), else exit 3 with the typed
-/// error JSON.
+/// (exit 4 when stale - "stale cache successfully used"; exit 0 when the
+/// cache is still fresh), else exit 3 with the typed error JSON.
 fn refresh_failure(error: &CloudflareError, cache_dir: &Path, err: &mut dyn Write) -> (i32, serde_json::Value) {
 	if let Ok(Some((meta, payload))) = read_catalog_cache(cache_dir) {
 		let records = records_from_payload(&payload);
@@ -982,7 +980,7 @@ fn catalog_diff_json() -> (i32, serde_json::Value) {
 }
 
 /// `catalog export yaml|markdown` - derive generated docs from the same
-/// cache/live/fallback records (feedback 01: generated docs must derive from
+/// cache/live/fallback records (generated docs must derive from
 /// the canonical catalog, never be hand-maintained duplicates). Writes
 /// `catalog.generated.yaml` / `catalog.generated.md` into the export dir
 /// (`AUTH_CLOUDFLARE_EXPORT_DIR`, default cwd).
@@ -1020,8 +1018,8 @@ fn catalog_export(format: ExportFormat, fetch: FetchCatalog, out: &mut dyn Write
 	EXIT_OK
 }
 
-/// `model inspect <id>` - the feedback-06 per-model object plus its source.
-/// Exit 5 when the id is not in the catalog (feedback 02: no eligible model).
+/// `model inspect <id>` - the per-model object plus its source.
+/// Exit 5 when the id is not in the catalog (no eligible model).
 fn model_inspect_json(fetch: FetchCatalog, model_id: &str) -> (i32, serde_json::Value) {
 	let resolved = resolve_catalog_data(fetch);
 	let policy = ModelPolicy::default_policy();
@@ -1038,7 +1036,7 @@ fn model_inspect_json(fetch: FetchCatalog, model_id: &str) -> (i32, serde_json::
 	};
 	let mut value = model_json(record, &policy);
 	value["source"] = serde_json::Value::String(resolved.source.to_string());
-	// Surface a delivery-degraded warning (feedback 01) when the account
+	// Surface a delivery-degraded warning when the account
 	// health store has a Degraded/Failing conformance record for this model.
 	// Advisory only - never changes the exit code or the model value shape.
 	if let Some(warning) = degraded_model_warning(model_id) {
@@ -1048,7 +1046,7 @@ fn model_inspect_json(fetch: FetchCatalog, model_id: &str) -> (i32, serde_json::
 }
 
 // ---------------------------------------------------------------------------
-// model verify / model health (Phase-3 conformance smoke suite, task sa-0)
+// model verify / model health (conformance smoke suite)
 // ---------------------------------------------------------------------------
 
 /// One completed conformance run, type-erased across suites so the CLI
@@ -1065,7 +1063,7 @@ enum RunOutcome {
 /// absent from the catalog is still verified. `--recommended` substitutes
 /// [`DEFAULT_MODEL`].
 ///
-/// Exit contract (feedback 02):
+/// Exit contract:
 /// - `0` all three checks passed (the run is persisted into `model-health.json`);
 /// - `1` the live gate is closed (`AUTH_CLOUDFLARE_LIVE_TESTS` != `1`) - the
 ///   gate check precedes credential resolution and any fetch;
@@ -1290,7 +1288,7 @@ fn policy_get_json() -> (i32, serde_json::Value) {
 }
 
 // ---------------------------------------------------------------------------
-// health-store warnings (model inspect / policy get, feedback 01)
+// health-store warnings (model inspect / policy get)
 // ---------------------------------------------------------------------------
 
 /// Load the account-scoped health store (`model-health.json`) best-effort:
@@ -1302,7 +1300,7 @@ fn load_health_store_best_effort() -> Option<verify::HealthStore> {
 	verify::load_health_store(&cache_dir).ok()
 }
 
-/// Token-free feedback-01 delivery warning for a model whose most recent
+/// Token-free delivery warning for a model whose most recent
 /// conformance verification is Degraded or Failing. Mirrors
 /// `health::health_warning`'s shape (names the model and the recommended
 /// stable alternative) but is keyed off the conformance-level
@@ -1338,8 +1336,8 @@ fn degraded_model_warning(model_id: &str) -> Option<String> {
 // export document builders (hand-rolled; no serde_yaml dependency)
 // ---------------------------------------------------------------------------
 
-/// `catalog.generated.yaml` - user-copyable Hermes fragment (feedback 02
-/// shape), derived from the same records as `catalog get`.
+/// `catalog.generated.yaml` - user-copyable Hermes fragment, derived from
+/// the same records as `catalog get`.
 fn export_yaml(records: &[ModelRecord], source: &str, fetched_at: &str, policy: &ModelPolicy) -> String {
 	let mut s = String::new();
 	s.push_str("# GENERATED FILE - do not edit by hand.\n");
@@ -1379,7 +1377,7 @@ fn export_yaml(records: &[ModelRecord], source: &str, fetched_at: &str, policy: 
 	s
 }
 
-/// `catalog.generated.md` - summary + model table (feedback 02 shape).
+/// `catalog.generated.md` - summary + model table.
 fn export_markdown(records: &[ModelRecord], source: &str, fetched_at: &str, policy: &ModelPolicy) -> String {
 	let eligible = records
 		.iter()
@@ -1704,11 +1702,11 @@ mod tests {
 	}
 
 	// ------------------------------------------------------------------
-	// version (feedback 06 exact shape)
+	// version (exact shape)
 	// ------------------------------------------------------------------
 
 	#[test]
-	fn version_json_exact_feedback_06_shape() {
+	fn version_json_exact_shape() {
 		with_env(&[], || {
 			let (code, value) = run_json(&["version", "--format", "json"]);
 			assert_eq!(code, EXIT_OK);
@@ -1742,7 +1740,7 @@ mod tests {
 	}
 
 	// ------------------------------------------------------------------
-	// doctor (feedback 06 shape, redaction, exit codes)
+	// doctor (shape, redaction, exit codes)
 	// ------------------------------------------------------------------
 
 	#[test]
@@ -2322,7 +2320,7 @@ mod tests {
 	}
 
 	// ------------------------------------------------------------------
-	// model verify / model health (Phase-3 conformance smoke suite)
+	// model verify / model health (conformance smoke suite)
 	// ------------------------------------------------------------------
 
 	#[test]
@@ -2562,7 +2560,7 @@ mod tests {
 		assert!(!detect_unsafe_config(&safe), "no api_token value is safe");
 		let env_named = home.join("env-named.json");
 		std::fs::write(&env_named, r#"{"api_token_env":"MY_CF_TOKEN_VAR"}"#).expect("write env-named config");
-		assert!(!detect_unsafe_config(&env_named), "env-var NAME is allowed (feedback 02)");
+		assert!(!detect_unsafe_config(&env_named), "env-var NAME is allowed");
 		let leaked = home.join("leaked.json");
 		std::fs::write(&leaked, r#"{"api_token":"cfut_leaked"}"#).expect("write leaked config");
 		assert!(detect_unsafe_config(&leaked), "a literal token value is unsafe");

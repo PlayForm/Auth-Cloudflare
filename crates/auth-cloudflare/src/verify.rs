@@ -1,26 +1,26 @@
-//! Verify - the Phase-3 live conformance smoke suite, sanitized failure
-//! evidence, and the versioned `model-health.json` store (task sa-0).
+//! Verify - the live conformance smoke suite, sanitized failure evidence,
+//! and the versioned `model-health.json` store.
 //!
 //! Three cheap, non-destructive checks exercise the OpenAI-compatible Chat
 //! Completions surface exactly as the Hermes plugin uses it:
 //!
 //! 1. **text_completion** - a non-streaming completion must return the exact
-//!    string `CF_HERMES_OK` in under 30 seconds (feedback 02
-//!    `10-inference` acceptance: `content_exact` + `max_elapsed_ms`).
+//!    string `CF_HERMES_OK` in under 30 seconds (`10-inference`
+//!    acceptance: `content_exact` + `max_elapsed_ms`).
 //! 2. **streaming** - a streaming completion must emit its first valid SSE
 //!    event within 20 seconds, deliver at least one content delta, reach a
 //!    terminal chunk (`finish_reason` non-null), close without a protocol
-//!    error, and never emit a duplicate terminal event (feedback 02
-//!    `20-streaming` acceptance). SSE is hand-rolled (line-based `data:`
+//!    error, and never emit a duplicate terminal event (`20-streaming`
+//!    acceptance). SSE is hand-rolled (line-based `data:`
 //!    parsing) because the workspace forbids extra dependencies.
 //! 3. **tool_call** - a single call to the harmless `get_project_sentinel`
-//!    function with `scope=provider-conformance` exactly once (feedback 02
-//!    `30-tool-calling` acceptance).
+//!    function with `scope=provider-conformance` exactly once
+//!    (`30-tool-calling` acceptance).
 //! 4. **structured_output** - a single JSON object with `sentinel` exactly
-//!    `CF_HERMES_OK`, constrained prompt-only (feedback 02
-//!    `50-structured-output` acceptance).
+//!    `CF_HERMES_OK`, constrained prompt-only (`50-structured-output`
+//!    acceptance).
 //! 5. **parallel_tools** - two distinct harmless tool calls in one assistant
-//!    turn (feedback 02 `30-tool-calling` acceptance).
+//!    turn (`30-tool-calling` acceptance).
 //!
 //! Checks 4 and 5 are standalone: they are exposed as public functions and
 //! are deliberately NOT part of [`run_smoke_suite`] (wiring them into the
@@ -30,13 +30,12 @@
 //! environment variable `AUTH_CLOUDFLARE_LIVE_TESTS` is exactly `1`** -
 //! `live_tests_enabled()` - returning a typed
 //! [`CloudflareError::MissingEnv`] refusal that names the variable. This is
-//! the guardrail against accidental paid inference (feedback 02: paid runs
-//! are opt-in). `AUTH_CLOUDFLARE_MAX_COST_USD` is an optional *documented*
+//! the guardrail against accidental paid inference: paid runs are opt-in. `AUTH_CLOUDFLARE_MAX_COST_USD` is an optional *documented*
 //! conformance budget: when present, the run report carries
 //! `cost_estimate_usd`; the value is reported and documented but **never
 //! enforced** - enforcement is the operator's job.
 //!
-//! Exit-code contract (feedback 02, binding table):
+//! Exit-code contract:
 //! - `0` - all three checks passed;
 //! - `1` - the live gate is closed (operational refusal);
 //! - `2` - credentials missing (resolved by the CLI before this module);
@@ -47,7 +46,7 @@
 //!   acceptance (non-2xx status or a 200 that failed acceptance), with
 //!   sanitized [`FailureEvidence`] persisted.
 //!
-//! Security contract (feedback 02, CI-tested): the token travels exclusively
+//! Security contract (CI-tested): the token travels exclusively
 //! through `crate::fetch::auth_header`; every error text and every response
 //! excerpt is scrubbed with `redact_token`; [`FailureEvidence::new`] caps
 //! excerpts at 512 characters; prompts, tool outputs, Authorization headers
@@ -78,7 +77,7 @@ use crate::health::{
 use crate::tool_loop::ToolLoopOutcome;
 
 /// Env var gating live inference: the suite runs only when this is exactly
-/// `"1"` (feedback 02: paid runs are opt-in).
+/// `"1"` (paid runs are opt-in).
 pub const LIVE_TESTS_ENV: &str = "AUTH_CLOUDFLARE_LIVE_TESTS";
 
 /// Optional conformance budget env var. When present (a positive finite
@@ -93,23 +92,23 @@ pub const HEALTH_STORE_FILE: &str = "model-health.json";
 /// older stores are rejected loudly instead of misread.
 pub const HEALTH_STORE_VERSION: u32 = 1;
 
-/// The fixed user message for the text and streaming checks (feedback 02
-/// `10-inference`).
+/// The fixed user message for the text and streaming checks
+/// (`10-inference`).
 pub const TEXT_PROMPT: &str = "Reply with exactly: CF_HERMES_OK";
 
 /// The exact content the non-streaming check must deliver.
 pub const EXACT_TEXT: &str = "CF_HERMES_OK";
 
-/// The tool-calling check prompt (feedback 02 `30-tool-calling`).
+/// The tool-calling check prompt (`30-tool-calling`).
 pub const TOOL_PROMPT: &str = "Call get_project_sentinel exactly once with scope=provider-conformance. Do not answer with prose before calling the tool.";
 
-/// The harmless sentinel tool name (feedback 02 `30-tool-calling`).
+/// The harmless sentinel tool name (`30-tool-calling`).
 pub const TOOL_NAME: &str = "get_project_sentinel";
 
 /// The only permitted `scope` argument value.
 pub const TOOL_SCOPE: &str = "provider-conformance";
 
-/// The parallel-tools check prompt (feedback 02 `30-tool-calling`): both
+/// The parallel-tools check prompt (`30-tool-calling`): both
 /// harmless tools must be called in one assistant turn.
 pub const PARALLEL_TOOL_PROMPT: &str = "Call BOTH get_project_sentinel and get_project_marker in this one turn. Do not answer with prose before calling the tools.";
 
@@ -130,7 +129,7 @@ pub const STRUCTURED_SENTINEL_FIELD: &str = "sentinel";
 /// The required field value in the structured-output object.
 pub const STRUCTURED_SENTINEL_VALUE: &str = "CF_HERMES_OK";
 
-/// Non-streaming acceptance: `elapsed_ms` must stay under this (feedback 02).
+/// Non-streaming acceptance: `elapsed_ms` must stay under this.
 pub const TEXT_COMPLETION_MAX_ELAPSED_MS: u64 = 30_000;
 
 /// Streaming acceptance: first valid SSE event within this many ms.
@@ -163,14 +162,14 @@ pub const PARALLEL_TOOL_CHECK_TIMEOUT: Duration = Duration::from_secs(60);
 /// is set; the budget itself is documented, never enforced.
 pub const SMOKE_SUITE_ESTIMATED_COST_USD: f64 = 0.001;
 
-/// The suites this runner knows. `smoke` and `tool-loop` exist in Phase 3;
+/// The suites this runner knows: `smoke` and `tool-loop`.
 /// the CLI rejects anything else as a usage error.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SuiteKind {
 	/// Cheap live smoke suite: exact text completion, streaming completion,
 	/// one tool call.
 	Smoke,
-	/// Multi-turn fake-tool conformance loop (feedback 02 suite 40): the
+	/// Multi-turn fake-tool conformance loop (suite 40): the
 	/// model must read a fixture, run its test, write the patch, and deliver
 	/// a final answer within the turn budget.
 	ToolLoop,
@@ -362,7 +361,7 @@ pub fn check_text_completion(config: &Config, model_id: &str) -> Result<CheckOut
 	}
 }
 
-/// Check (b): streaming completion. Acceptance (feedback 02 `20-streaming`):
+/// Check (b): streaming completion. Acceptance (`20-streaming`):
 /// first valid SSE event within 20 s, at least one content delta, a terminal
 /// chunk with non-null `finish_reason`, clean close with no protocol error,
 /// no duplicate terminal event, total duration under the configured timeout.
@@ -462,8 +461,7 @@ pub fn check_streaming_completion(config: &Config, model_id: &str) -> Result<Che
 	}
 }
 
-/// Check (c): one harmless tool call. Acceptance (feedback 02
-/// `30-tool-calling`): exactly one standard tool call, name exactly
+/// Check (c): one harmless tool call. Acceptance (`30-tool-calling`): exactly one standard tool call, name exactly
 /// `get_project_sentinel`, argument JSON parses, `scope` exactly
 /// `provider-conformance`.
 pub fn check_tool_call(config: &Config, model_id: &str) -> Result<CheckOutcome, CloudflareError> {
@@ -523,8 +521,8 @@ pub fn check_tool_call(config: &Config, model_id: &str) -> Result<CheckOutcome, 
 // HTTP transport
 // ---------------------------------------------------------------------------
 
-/// The harmless `get_project_sentinel` tool schema (feedback 02
-/// `30-tool-calling`): a `scope` argument restricted to `provider-conformance`.
+/// The harmless `get_project_sentinel` tool schema (`30-tool-calling`): a
+/// `scope` argument restricted to `provider-conformance`.
 fn sentinel_tool_schema() -> serde_json::Value {
 	serde_json::json!({
 		"type": "function",
@@ -563,8 +561,7 @@ fn marker_tool_schema() -> serde_json::Value {
 	})
 }
 
-/// Check (d): structured output. Acceptance (feedback 02
-/// `50-structured-output`): the completion content parses as a JSON object
+/// Check (d): structured output. Acceptance (`50-structured-output`): the completion content parses as a JSON object
 /// with `sentinel` exactly `CF_HERMES_OK`. Prompt-only constraint - no
 /// `response_format` parameter, so the model must honor a natural-language
 /// shape instruction.
@@ -620,8 +617,7 @@ pub fn check_structured_output(config: &Config, model_id: &str) -> Result<CheckO
 	}
 }
 
-/// Check (e): parallel tool calls. Acceptance (feedback 02
-/// `30-tool-calling`): exactly two tool calls in one assistant turn, one
+/// Check (e): parallel tool calls. Acceptance (`30-tool-calling`): exactly two tool calls in one assistant turn, one
 /// `get_project_sentinel` and one `get_project_marker` (order-agnostic),
 /// both with valid JSON arguments.
 pub fn check_parallel_tools(config: &Config, model_id: &str) -> Result<CheckOutcome, CloudflareError> {
@@ -974,8 +970,7 @@ pub fn classify_tool_response(body: Option<&str>) -> Option<FailureClass> {
 	None
 }
 
-/// Pure acceptance for the structured-output check (feedback 02
-/// `50-structured-output`): the completion content must parse as a JSON
+/// Pure acceptance for the structured-output check (`50-structured-output`): the completion content must parse as a JSON
 /// object with `sentinel` exactly `CF_HERMES_OK`. `None` means the
 /// criterion holds; otherwise the closest existing taxonomy class is
 /// returned (InvalidJson for unparsable/`wrong-value` JSON, InvalidChatCompletionShape
@@ -1018,8 +1013,7 @@ pub fn classify_structured_output(body: Option<&str>) -> Option<FailureClass> {
 	None
 }
 
-/// Pure acceptance for the parallel-tools check (feedback 02
-/// `30-tool-calling`): exactly two tool calls in one turn, one per expected
+/// Pure acceptance for the parallel-tools check (`30-tool-calling`): exactly two tool calls in one turn, one per expected
 /// name (`get_project_sentinel` + `get_project_marker`, order-agnostic), both
 /// with valid JSON arguments. `None` means acceptance holds; otherwise
 /// NoToolCall (fewer than two calls), DuplicateToolCall (more than two, or
@@ -1179,7 +1173,7 @@ pub fn classify_stream_failure(
 // ---------------------------------------------------------------------------
 
 /// Aggregate the three check outcomes into the canonical
-/// [`ModelVerification`] (feedback 02). Status formula: 0 failures →
+/// [`ModelVerification`]. Status formula: 0 failures →
 /// Passing, 1 failure → Degraded, 2+ failures → Failing. Each check counts
 /// as one run (`total_runs` = 3), so `delivery_success_rate()` is the
 /// fraction of smoke checks that delivered - the picker's delivery metric.
@@ -1245,8 +1239,8 @@ fn rate_of(passed: bool) -> f64 {
 	if passed { 1.0 } else { 0.0 }
 }
 
-/// Aggregate one tool-loop outcome into a [`ModelVerification`] (feedback 02
-/// suite 40). The loop counts as one run: `total_runs` = 1,
+/// Aggregate one tool-loop outcome into a [`ModelVerification`]
+/// (suite 40). The loop counts as one run: `total_runs` = 1,
 /// `multi_turn_tool_success_rate` is 1.0 when the loop converged, 0.0
 /// otherwise; a non-converged loop is `Failing` with `tool_loop_failures` =
 /// 1 and the loop's own [`FailureClass`] as sanitized evidence (no HTTP

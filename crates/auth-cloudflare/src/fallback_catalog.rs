@@ -1,6 +1,6 @@
 //! Fallback catalog - the offline model list when live discovery fails.
 //!
-//! ORDER IS POLICY (feedback 01/05/06): DeepSeek V4 Flash is first and is
+//! ORDER IS POLICY: DeepSeek V4 Flash is first and is
 //! the development default; GLM-5.3 Flash is experimental and must never
 //! lead the fallback list. The single source of truth lives in
 //! [`crate::catalog`]; these functions expose it without duplicating ids.

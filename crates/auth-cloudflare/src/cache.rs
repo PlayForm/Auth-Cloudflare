@@ -1,9 +1,8 @@
 //! Cache - account-scoped, atomic cache paths and versioned catalog cache for
 //! the Workers AI catalog.
 //!
-//! Layout: `$HERMES_HOME/cache/auth-cloudflare/<slug>/` (feedback 03 rename
-//! contract). Each account's catalog is stored as two files written
-//! atomically:
+//! Layout: `$HERMES_HOME/cache/auth-cloudflare/<slug>/`. Each account's
+//! catalog is stored as two files written atomically:
 //! - `catalog.json` - the raw payload (`serde_json::Value`);
 //! - `catalog.meta.json` - `CatalogCacheMeta` (schema version, fetch time,
 //!   provenance, model count, account fingerprint).
@@ -40,8 +39,8 @@ pub fn cache_dir_for_account(provider: &AuthProvider) -> PathBuf {
 		.join(provider.cache_slug())
 }
 
-/// Metadata recorded alongside every cached catalog payload (feedback 02/06:
-/// the cache records timestamps, provenance, and model count).
+/// Metadata recorded alongside every cached catalog payload (the cache
+/// records timestamps, provenance, and model count).
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct CatalogCacheMeta {

@@ -2,7 +2,7 @@
 //!
 //! The primary runtime artifact is the `auth-cloudflare` executable (doctor,
 //! catalog, model verify). This optional binary manages it from the Rust
-//! side (feedback 06 "optional utility", feedback 04 command surface):
+//! side (an optional utility with this command surface):
 //!
 //! ```text
 //! auth-hermes-cloudflare status                 # JSON: plugin + binary state
@@ -145,7 +145,7 @@ struct InstallOptions {
 	no_download: bool,
 }
 
-/// Parsed command surface (feedback 04).
+/// Parsed command surface.
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum CliCommand {
 	Status,

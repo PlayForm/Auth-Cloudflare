@@ -1,20 +1,20 @@
 //! Health - delivery health records, conformance verification, and typed
 //! failure evidence for Cloudflare Workers AI models.
 //!
-//! Feedback 01 requires the provider to capture delivery-failure evidence
-//! (circuit-breaker record) instead of silently switching models, and
-//! feedback 02 adds the canonical verification record (`ModelVerification`),
-//! the delivery-failure taxonomy (`FailureClass`), and sanitized-evidence
-//! rules: never persist Authorization headers, API tokens, full prompts, or
-//! tool outputs; response excerpts are capped at `MAX_EXCERPT_CHARS` (512).
+//! The provider captures delivery-failure evidence (circuit-breaker record)
+//! instead of silently switching models, and maintains the canonical
+//! verification record (`ModelVerification`), the delivery-failure taxonomy
+//! (`FailureClass`), and sanitized-evidence rules: never persist
+//! Authorization headers, API tokens, full prompts, or tool outputs;
+//! response excerpts are capped at `MAX_EXCERPT_CHARS` (512).
 //!
 //! The three statements a model can make must never be conflated:
 //! *Available* (Cloudflare says the account can invoke it), *Capable*
 //! (schema/docs say a feature is supported), and *Verified* (this project
 //! recently tested it successfully with Hermes-style tools).
 //! `ModelVerification` owns the *Verified* statement, and
-//! `passes_acceptance_gate` implements the feedback-01 acceptance criteria
-//! for recommended models.
+//! `passes_acceptance_gate` implements the acceptance criteria for
+//! recommended models.
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -25,10 +25,10 @@ use serde::{Deserialize, Serialize};
 /// `ModelVerification` artifacts cannot be mistaken for fresh ones.
 pub const CONFORMANCE_SUITE_VERSION: &str = "0.0.1";
 
-/// Maximum length of a sanitized `response_excerpt` (feedback 02).
+/// Maximum length of a sanitized `response_excerpt`.
 pub const MAX_EXCERPT_CHARS: usize = 512;
 
-/// Minimum completed runs before the acceptance gate may pass (feedback 01).
+/// Minimum completed runs before the acceptance gate may pass.
 const MIN_ACCEPTANCE_RUNS: u32 = 100;
 
 /// Maximum tolerated fraction of transport/timeout/provider-5xx failures.
@@ -43,7 +43,7 @@ const MIN_MULTI_TURN_TOOL_SUCCESS_RATE: f64 = 0.93;
 /// Delivery-rate threshold below which a health window is degraded.
 const DEGRADED_RATE_THRESHOLD: f64 = 0.9;
 
-/// Typed delivery-failure taxonomy (feedback 02).
+/// Typed delivery-failure taxonomy.
 ///
 /// Every failure recorded for a Cloudflare Workers AI model must map to
 /// exactly one class. `Unknown` is the last resort for classes not yet in
@@ -105,7 +105,7 @@ pub enum FailureClass {
 	Unknown,
 }
 
-/// One sanitized failure observation (feedback 02).
+/// One sanitized failure observation.
 ///
 /// Security contract: this type has NO field for Authorization headers, API
 /// tokens, prompts, or tool outputs - and `deny_unknown_fields` rejects any
@@ -163,8 +163,8 @@ impl FailureEvidence {
 	}
 }
 
-/// Rolling delivery-health window for one model (feedback 01 circuit-breaker
-/// record: captures failure evidence; automatic failover stays disabled).
+/// Rolling delivery-health window for one model (circuit-breaker record:
+/// captures failure evidence; automatic failover stays disabled).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ModelHealthRecord {
 	pub model_id: String,
@@ -191,8 +191,8 @@ impl ModelHealthRecord {
 	}
 
 	/// True when the window is degraded: delivery rate below 0.9 or any
-	/// recorded failure in the window (feedback 01 policy - GLM-5.3 Flash
-	/// delivered 22/31 = 70.9% before it was demoted to experimental).
+	/// recorded failure in the window (GLM-5.3 Flash delivered 22/31 = 70.9%
+	/// before it was demoted to experimental).
 	pub fn is_degraded(&self) -> bool {
 		let failure_total =
 			self.transport_failures + self.upstream_5xx_failures + self.timeout_failures + self.malformed_tool_calls;
@@ -204,7 +204,7 @@ impl ModelHealthRecord {
 }
 
 /// Render a token-free, human-readable delivery-health warning for a
-/// degraded model (feedback 01), or `None` for a clean/empty window.
+/// degraded model, or `None` for a clean/empty window.
 ///
 /// The message states the model id, the percent delivery rate, the request
 /// count, and the recommended stable alternative - no tokens, secrets, or
@@ -227,7 +227,7 @@ pub fn recommended_stable_alternative(model_id: &str) -> &'static str {
 	if model_id == crate::DEFAULT_MODEL { "" } else { crate::DEFAULT_MODEL }
 }
 
-/// Outcome of the most recent conformance run (feedback 02).
+/// Outcome of the most recent conformance run.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum VerificationStatus {
@@ -243,8 +243,8 @@ pub enum VerificationStatus {
 	Expired,
 }
 
-/// How much evidence backs a verification verdict (feedback 02 - the
-/// selector prefers verified capability over provider claims).
+/// How much evidence backs a verification verdict (the selector prefers
+/// verified capability over provider claims).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum VerificationConfidence {
@@ -261,7 +261,7 @@ pub enum VerificationConfidence {
 }
 
 /// Canonical verification record - the *Verified* statement for one model
-/// (feedback 02). Consumed by the picker, policy, and health reporting.
+/// Consumed by the picker, policy, and health reporting.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelVerification {
 	pub model_id: String,
@@ -301,7 +301,7 @@ impl ModelVerification {
 		Some((self.successful_runs as f64 / self.total_runs as f64).min(1.0))
 	}
 
-	/// Feedback-01 acceptance gate for recommended models:
+	/// Acceptance gate for recommended models:
 	///
 	/// - at least 100 completed runs;
 	/// - transport completion >= 98% (transport + timeout + provider-5xx
@@ -399,7 +399,7 @@ mod tests {
 
 	#[test]
 	fn success_rate_math() {
-		// GLM-5.3 Flash evidence from feedback 01: 22 successful of 31.
+		// GLM-5.3 Flash evidence: 22 successful of 31.
 		let rate = health_record(31, 22, 9, 0, 0, 0).delivery_success_rate().expect("rate present");
 		let expected = 22.0 / 31.0;
 		assert!((rate - expected).abs() < 1e-9, "rate {rate} != {expected}");

@@ -1,10 +1,10 @@
 //! Schema - versioned JSON contract metadata for the catalog cache and the
-//! `auth-cloudflare version --format json` CLI contract (feedback 06).
+//! `auth-cloudflare version --format json` CLI contract.
 //!
 //! The Hermes plugin (`auth-hermes-cloudflare`) validates protocol and
 //! catalog-schema compatibility against `VersionInfo::current()` before
 //! invoking catalog commands; a newer unsupported schema version must be
-//! rejected rather than silently guessed (feedback 02).
+//! rejected rather than silently guessed.
 
 use serde::Serialize;
 
@@ -61,10 +61,10 @@ mod tests {
 	}
 
 	#[test]
-	fn version_info_serializes_to_feedback_06_shape() {
+	fn version_info_serializes_to_exact_shape() {
 		let value = serde_json::to_value(VersionInfo::current()).expect("serialize");
 		let object = value.as_object().expect("object");
-		// Exact feedback-06 key set: name, package_version, protocol_version,
+		// Exact key set: name, package_version, protocol_version,
 		// catalog_schema_versions, minimum_hermes_plugin_version.
 		assert_eq!(
 			object.keys().cloned().collect::<std::collections::BTreeSet<_>>(),

@@ -1,4 +1,4 @@
-//! Integration tests for the live-test gate (feedback 02: paid inference is
+//! Integration tests for the live-test gate (paid inference is
 //! opt-in): with `AUTH_CLOUDFLARE_LIVE_TESTS` unset or not exactly `"1"`,
 //! `live_tests_enabled` is false and the PUBLIC entry points
 //! `verify::run_smoke_suite` / `tool_loop::run_tool_loop` refuse with

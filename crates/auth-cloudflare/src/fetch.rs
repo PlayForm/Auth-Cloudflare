@@ -2,17 +2,16 @@
 //!
 //! Typed blocking GET of
 //! `/accounts/<id>/ai/models/search?format=openrouter&per_page=1000&hide_experimental=false&include_deprecated=false`
-//! (feedback 01 contract) with the token carried exclusively in the
+//! with the token carried exclusively in the
 //! `Authorization: Bearer *** header.
 //!
-//! Pagination (feedback 01: "handle pagination even if Cloudflare later caps
-//! per_page"): [`fetch_catalog_from_api`] follows cursor/next-page markers -
+//! Pagination ("handle pagination even if Cloudflare later caps per_page"): [`fetch_catalog_from_api`] follows cursor/next-page markers -
 //! `result_info.cursor`, `result_info.page`/`total_pages`, a top-level
 //! `cursor`, or a top-level `next` field - merging each page's `data` array
 //! until the marker disappears or [`MAX_CATALOG_PAGES`] pages were pulled. A
 //! payload with no pagination field behaves exactly as before (single page).
 //!
-//! Error taxonomy (feedback 01/03): missing token → [`CloudflareError::MissingEnv`]
+//! Error taxonomy: missing token → [`CloudflareError::MissingEnv`]
 //! (defensive - the core's `Config` already guarantees a non-empty token);
 //! 403 → [`CloudflareError::AuthRejected`] with a scope classification from
 //! the envelope code (invalid token / wrong account scope / Workers AI
@@ -33,22 +32,22 @@ use crate::auth::{AuthProvider, TOKEN_ENV};
 use crate::config::SecretString;
 use crate::error::{AuthScope, CloudflareError};
 
-/// Overall per-request timeout for the catalog GET (15s, task contract).
+/// Overall per-request timeout for the catalog GET (15s).
 pub const FETCH_TIMEOUT: Duration = Duration::from_secs(15);
 
-/// Safety cap on catalog pages (feedback 01: a misconfigured server that
+/// Safety cap on catalog pages (a misconfigured server that
 /// keeps returning a cursor cannot loop forever).
 const MAX_CATALOG_PAGES: usize = 10;
 
-/// Extra query parameters beyond `AuthProvider::models_url()` (feedback 01):
+/// Extra query parameters beyond `AuthProvider::models_url()`:
 /// experimental models ARE included (they are labeled downstream by policy,
 /// never silently hidden) and deprecated models are excluded.
 const EXTRA_QUERY: &str = "&hide_experimental=false&include_deprecated=false";
 
-/// The exact catalog endpoint URL for one account (feedback 01 contract).
+/// The exact catalog endpoint URL for one account.
 ///
 /// Built on `AuthProvider::models_url()` so the base path stays
-/// single-sourced; only the feedback-01 query parameters are appended here.
+/// single-sourced; only the required query parameters are appended here.
 pub fn catalog_url(account_id: &str) -> String {
 	format!("{}{EXTRA_QUERY}", AuthProvider::new(account_id).models_url())
 }
@@ -216,7 +215,7 @@ fn map_response(status: u16, retry_after: Option<&str>, body: &str) -> Result<se
 }
 
 /// Parse a 200 payload; malformed JSON or a missing `data` array are both
-/// [`CloudflareError::NoDataArray`] (feedback 01: "invalid model payload").
+/// [`CloudflareError::NoDataArray`] ("invalid model payload").
 fn parse_payload(body: &str) -> Result<serde_json::Value, CloudflareError> {
 	let value: serde_json::Value = serde_json::from_str(body).map_err(|_| CloudflareError::NoDataArray)?;
 	match value.get("data") {
@@ -254,8 +253,8 @@ fn envelope_api_error(status: u16, body: &str) -> CloudflareError {
 }
 
 /// Map a 403 rejection to a distinct, actionable [`CloudflareError::AuthRejected`]
-/// using the envelope code + message (feedback 01: invalid-token /
-/// wrong-account-scope / Workers-AI-permission distinguished).
+/// using the envelope code + message (invalid-token / wrong-account-scope /
+/// Workers-AI-permission distinguished).
 fn forbidden_error(body: &str) -> CloudflareError {
 	let (code, message) = envelope_parts(403, body);
 	CloudflareError::AuthRejected { kind: auth_scope_for(code, &message), code, message }
@@ -298,7 +297,7 @@ fn auth_scope_for(code: u32, message: &str) -> AuthScope {
 	AuthScope::GenericAuth
 }
 
-/// Rate-limit error: always `Api` code 429 (task contract) with the
+/// Rate-limit error: always `Api` code 429 with the
 /// Retry-After hint and the envelope message when available.
 fn rate_limit_error(retry_after: Option<&str>, body: &str) -> CloudflareError {
 	let retry_hint = retry_after
@@ -346,7 +345,7 @@ mod tests {
 	const TOKEN: &str = "cfut_test_synthetic_token_0001";
 
 	#[test]
-	fn catalog_url_is_exact_feedback_01_endpoint() {
+	fn catalog_url_is_exact_endpoint() {
 		assert_eq!(
 			catalog_url(ACCOUNT),
 			"https://api.cloudflare.com/client/v4/accounts/0123456789abcdef0123456789abcdef/ai/models/search?format=openrouter&per_page=1000&hide_experimental=false&include_deprecated=false"

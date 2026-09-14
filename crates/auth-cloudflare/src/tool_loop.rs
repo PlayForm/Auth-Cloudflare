@@ -1,5 +1,5 @@
 //! Tool loop - deterministic multi-turn fake-tool conformance harness
-//! (feedback 02, suite `40-multi-turn-tool-loop`).
+//! (suite `40-multi-turn-tool-loop`).
 //!
 //! This is the most important Hermes test: a LIVE model must complete a
 //! three-step fixture workflow through OpenAI-format tool calls backed by
@@ -11,7 +11,7 @@
 //! 3. `write_fixture_patch` - the runner returns a success report;
 //! 4. the model delivers a concise final answer with no tool calls.
 //!
-//! Acceptance (feedback 02): correct ordering (read before run before
+//! Acceptance: correct ordering (read before run before
 //! write; re-reading after a successful run is a violation), no invalid tool
 //! names, all argument JSON valid and schema-conformant, no duplicate call
 //! of the same tool with identical arguments after a successful result, a
@@ -50,8 +50,7 @@ use crate::health::{FailureClass, MAX_EXCERPT_CHARS};
 /// `"yes"`, whitespace) refuses with [`CloudflareError::MissingEnv`].
 pub const LIVE_TESTS_ENV: &str = "AUTH_CLOUDFLARE_LIVE_TESTS";
 
-/// Maximum assistant turns allowed for one tool-loop run (feedback 02:
-/// "total turns ≤ 8"). A final answer ON the max turn is within budget; tool
+/// Maximum assistant turns allowed for one tool-loop run ("total turns ≤ 8"). A final answer ON the max turn is within budget; tool
 /// calls on the max turn are a breach.
 pub const TOOL_LOOP_MAX_TURNS: u32 = 8;
 

@@ -1,7 +1,7 @@
 //! Config - typed account/token/base-url/cache resolution with strict
 //! precedence and secret-safe token handling.
 //!
-//! Precedence chain (binding feedback 03/06):
+//! Precedence chain:
 //!
 //! ```text
 //! 1. explicit constructor/config value (ConfigBuilder)
@@ -36,7 +36,7 @@ pub const BASE_URL_ENV: &str = "AUTH_CLOUDFLARE_WORKERS_AI_BASE_URL";
 pub const CACHE_DIR_ENV: &str = "AUTH_CLOUDFLARE_CACHE_DIR";
 /// Optional override for the user config file path.
 pub const CONFIG_ENV: &str = "AUTH_CLOUDFLARE_CONFIG";
-/// Legacy Hermes-compatible token alias (feedback 03).
+/// Legacy Hermes-compatible token alias.
 pub const LEGACY_HERMES_TOKEN_ENV: &str = "HERMES_CUSTOM_API_CLOUDFLARE_COM_API_KEY";
 
 /// Expected Cloudflare account ID shape: exactly this many ASCII hex digits.
@@ -263,7 +263,7 @@ impl ConfigBuilder {
 
 		// 2. API token: constructor > canonical env > legacy aliases > file
 		//    (which may only name the env var holding the token - never the
-		//    value itself, per feedback 02).
+		//    value itself).
 		let api_token = normalize(self.api_token)
 			.or_else(|| env_nonempty(API_TOKEN_ENV))
 			.or_else(|| env_nonempty(TOKEN_ENV))
@@ -304,7 +304,7 @@ impl ConfigBuilder {
 ///
 /// The token VALUE is never stored here; `api_token_env` may name the
 /// environment variable that holds it ("the configuration file may contain
-/// the variable name but never the secret value" - binding feedback 02). A
+/// the variable name but never the secret value"). A
 /// stray `api_token` value in the file is ignored by serde and never read.
 #[derive(serde::Deserialize, Default)]
 struct FileConfig {
