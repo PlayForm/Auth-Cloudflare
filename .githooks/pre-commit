@@ -7,6 +7,16 @@ set -euo pipefail
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "$REPO_ROOT"
 
+# 0. Branch guard - refuse commits on a detached HEAD. Auto-commits that
+#    land on a detached HEAD (submodule checkouts are detached by default)
+#    reference no branch and dangle as soon as the submodule is re-synced.
+#    Always commit on a branch (Current) so every commit stays reachable.
+if ! git symbolic-ref -q HEAD >/dev/null 2>&1; then
+	echo "ERROR: refusing to commit on a detached HEAD."
+	echo "  Check out a branch first, e.g.:  git checkout Current"
+	exit 1
+fi
+
 STAGED=$(git diff --cached --name-only --diff-filter=ACM)
 if [[ -z "$STAGED" ]]; then
 	exit 0
