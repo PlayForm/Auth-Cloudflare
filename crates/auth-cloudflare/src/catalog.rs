@@ -265,6 +265,85 @@ const NON_CHAT_MARKERS: &[&str] = &[
 	"kimi-k3",
 ];
 
+/// Reasoning-confirmed models and the ``reasoning_effort`` enum each accepts.
+///
+/// Single source of truth for the Hermes integration (`models sync`): the
+/// catalog API marks reasoning only via role markers (r1/qwq), so the
+/// documented reasoning families are confirmed here. Cloudflare's per-model
+/// docs pin the OpenAI-compatible ``reasoning_effort`` enum to
+/// low|medium|high (deepseek-v4-flash-0731 verified); the other families
+/// share the same Workers AI chat-completions schema shape. The Python
+/// plugin's CLOUDFLARE_REASONING_EFFORTS constant mirrors this table.
+pub const REASONING_EFFORTS_BY_MODEL: &[(&str, &[&str])] = &[
+	("@cf/deepseek-ai/deepseek-v4-flash-0731", &["low", "medium", "high"]),
+	("@cf/deepseek-ai/deepseek-v4-pro-0813", &["low", "medium", "high"]),
+	("@cf/deepseek-ai/deepseek-r1-distill-qwen-32b", &["low", "medium", "high"]),
+	("@cf/moonshotai/kimi-k2.7-code", &["low", "medium", "high"]),
+	("@cf/moonshotai/kimi-k2.6", &["low", "medium", "high"]),
+	("@cf/zai-org/glm-5.3", &["low", "medium", "high"]),
+	("@cf/zai-org/glm-5.3-flash", &["low", "medium", "high"]),
+	("@cf/qwen/qwq-32b", &["low", "medium", "high"]),
+];
+
+/// Hermes ``model_family`` values for the plugin's primary models (mirrors the
+/// plugin's PRIMARY_AGENT_MODELS / FALLBACK_MODELS sets). Unknown models yield
+/// no family (the sync record omits the field).
+pub const MODEL_FAMILIES_BY_ID: &[(&str, &str)] = &[
+	("@cf/deepseek-ai/deepseek-v4-flash-0731", "deepseek-flash"),
+	("@cf/deepseek-ai/deepseek-v4-pro-0813", "deepseek-flash"),
+	("@cf/deepseek-ai/deepseek-r1-distill-qwen-32b", "deepseek-r1"),
+	("@cf/moonshotai/kimi-k2.7-code", "kimi-k2"),
+	("@cf/moonshotai/kimi-k2.6", "kimi-k2"),
+	("@cf/openai/gpt-oss-120b", "gpt-oss"),
+	("@cf/openai/gpt-oss-20b", "gpt-oss"),
+	("@cf/qwen/qwen3-30b-a3b-fp8", "qwen3"),
+	("@cf/qwen/qwen3.8-27b", "qwen3"),
+	("@cf/qwen/qwen2.5-coder-32b-instruct", "qwen-coder"),
+	("@cf/qwen/qwq-32b", "qwq"),
+	("@cf/zai-org/glm-5.3", "glm"),
+	("@cf/zai-org/glm-5.3-flash", "glm"),
+	("@cf/zai-org/glm-4.7-flash", "glm"),
+	("@cf/meta/llama-4-scout-17b-16e-instruct", "llama"),
+	("@cf/meta/llama-3.3-70b-instruct-fp8-fast", "llama"),
+	("@cf/meta/llama-3.1-8b-instruct-fp8", "llama"),
+	("@cf/meta/llama-3.2-1b-instruct", "llama"),
+	("@cf/meta/llama-3.2-3b-instruct", "llama"),
+	("@cf/meta/llama-3.2-11b-vision-instruct", "llama"),
+	("@cf/mistralai/mistral-small-3.1-24b-instruct", "mistral"),
+	("@cf/nvidia/nemotron-3-120b-a12b", "nemotron"),
+	("@cf/ibm-granite/granite-4.0-h-micro", "granite"),
+];
+
+/// Reasoning effort vocabulary for *id*, or an empty slice when the model is
+/// not a documented reasoning model (the sync record then omits ``reasoning``
+/// and ``reasoning_efforts`` entirely).
+pub fn reasoning_efforts_for(id: &str) -> &'static [&'static str] {
+	REASONING_EFFORTS_BY_MODEL
+		.iter()
+		.find(|(mid, _)| *mid == id)
+		.map(|(_, efforts)| *efforts)
+		.unwrap_or(&[])
+}
+
+/// Hermes ``model_family`` for *id*, or None.
+pub fn model_family_for(id: &str) -> Option<&'static str> {
+	MODEL_FAMILIES_BY_ID
+		.iter()
+		.find(|(mid, _)| *mid == id)
+		.map(|(_, family)| *family)
+}
+
+/// Vision-capable Cloudflare models (llama-3.2-11b-vision accepts image
+/// input). The `models sync` records carry ``supports_vision`` so Hermes'
+/// per-model catalog knows which Cloudflare models take images; the plugin's
+/// default_vision_model() returns this id for auxiliary vision calls.
+pub const VISION_CONFIRMED: &[&str] = &["@cf/meta/llama-3.2-11b-vision-instruct"];
+
+/// True when *id* is a vision-capable Cloudflare model.
+pub fn vision_confirmed_for(id: &str) -> bool {
+	VISION_CONFIRMED.contains(&id)
+}
+
 impl ModelRecord {
 	/// Normalize one OpenRouter-format catalog entry.
 	pub fn from_openrouter(item: &serde_json::Value) -> Option<Self> {

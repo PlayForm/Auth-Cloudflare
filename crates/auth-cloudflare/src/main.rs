@@ -15,6 +15,7 @@
 //! auth-cloudflare model verify <model-id> [--suite smoke|tool-loop] [--recommended] [--format json]
 //! auth-cloudflare model health [--format json]
 //! auth-cloudflare policy get [--format json]
+//! auth-cloudflare models sync [--format json]
 //! ```
 //!
 //! Offline-safety contract: `version`, `doctor`, and `policy get` never
@@ -42,7 +43,9 @@ use auth_cloudflare::auth::{AuthProvider, ACCOUNT_ENV, TOKEN_ENV};
 use auth_cloudflare::cache::{
 	cache_dir_for_account, cache_is_stale, read_catalog_cache, write_catalog_cache, CatalogCacheMeta,
 };
-use auth_cloudflare::catalog::{ModelRecord, FALLBACK_MODELS};
+use auth_cloudflare::catalog::{
+	model_family_for, reasoning_efforts_for, vision_confirmed_for, CapabilityState, ModelRecord, FALLBACK_MODELS,
+};
 use auth_cloudflare::config::{Config, SecretString};
 use auth_cloudflare::error::CloudflareError;
 use auth_cloudflare::fetch::{fetch_catalog_from_api, FETCH_TIMEOUT};
@@ -121,6 +124,7 @@ Usage:
   auth-cloudflare model verify <model-id> [--suite smoke] [--format json]
   auth-cloudflare model health [--format json]
   auth-cloudflare policy get [--format json]
+  auth-cloudflare models sync [--format json]
   auth-cloudflare help
 
 Exit codes:
@@ -160,6 +164,7 @@ enum Command {
 	ModelVerify { model_id: String, suite: SuiteKind, recommended: bool },
 	ModelHealth,
 	PolicyGet,
+	ModelsSync,
 	Help,
 }
 
@@ -287,6 +292,10 @@ fn parse_args(args: &[String]) -> Result<(Command, Option<String>), String> {
 			[sub] if sub == "get" => Command::PolicyGet,
 			_ => return Err(format!("unknown policy subcommand: {}", positional.join(" "))),
 		},
+		[first, rest @ ..] if first == "models" => match rest {
+			[sub] if sub == "sync" => Command::ModelsSync,
+			_ => return Err(format!("unknown models subcommand: {}", positional.join(" "))),
+		},
 		_ => return Err(format!("unknown command: {}", positional.join(" "))),
 	};
 	// --suite / --recommended are model-verify flags; anywhere else they are
@@ -354,6 +363,10 @@ fn execute(command: Command, out: &mut dyn Write, err: &mut dyn Write, fetch: Fe
 		},
 		Command::PolicyGet => {
 			let (code, value) = policy_get_json();
+			emit_json(out, err, &value, code)
+		},
+		Command::ModelsSync => {
+			let (code, value) = models_sync_json(fetch);
 			emit_json(out, err, &value, code)
 		},
 	}
@@ -805,6 +818,64 @@ fn catalog_get_json(fetch: FetchCatalog) -> (i32, serde_json::Value) {
 		_ => EXIT_OK,
 	};
 	let value = catalog_document(resolved.source, resolved.cache_status, resolved.fetched_at, &resolved.records);
+	(exit, value)
+}
+
+/// `models sync` - the Hermes `model_overrides` handoff (cache-first, same
+/// resolution as `catalog get`). Every primary-agent-eligible model becomes a
+/// capability record Hermes can consume: context_window (from the live
+/// catalog), tool_call/reasoning/reasoning_efforts/model_family (from the
+/// confirmed tables in `catalog.rs`), pricing. The plugin's
+/// `hermes cloudflare models sync` maps these onto
+/// `model_overrides.<provider>.<model>.<field>` for the provider keys Hermes
+/// knows (plugin provider + custom-provider path) - no core edits.
+fn models_sync_json(fetch: FetchCatalog) -> (i32, serde_json::Value) {
+	let resolved = resolve_catalog_data(fetch);
+	let policy = ModelPolicy::default_policy();
+	let models: Vec<serde_json::Value> = resolved
+		.records
+		.iter()
+		.filter(|record| policy.is_primary_agent_eligible(&record.id))
+		.map(|record| {
+			let mut entry = serde_json::json!({ "id": record.id });
+			if let Some(ctx) = record.limits.context_tokens {
+				entry["context_window"] = serde_json::json!(ctx);
+			}
+			if record.capabilities.tools == CapabilityState::Confirmed {
+				entry["tool_call"] = serde_json::json!(true);
+			}
+			let efforts = reasoning_efforts_for(&record.id);
+			if !efforts.is_empty() {
+				entry["reasoning"] = serde_json::json!(true);
+				entry["reasoning_efforts"] = serde_json::json!(efforts);
+			}
+			if vision_confirmed_for(&record.id) {
+				entry["supports_vision"] = serde_json::json!(true);
+			}
+			if let Some(family) = model_family_for(&record.id) {
+				entry["model_family"] = serde_json::json!(family);
+			}
+			entry["pricing_per_million"] = serde_json::json!({
+				"input": record.pricing.input,
+				"cached_input": record.pricing.cached_input,
+				"output": record.pricing.output,
+			});
+			entry
+		})
+		.collect();
+	let exit = match resolved.cache_status {
+		"stale" => EXIT_STALE_CACHE,
+		_ => EXIT_OK,
+	};
+	let value = serde_json::json!({
+		"schema_version": CATALOG_SCHEMA_VERSION,
+		"command": "models sync",
+		"source": resolved.source,
+		"cache_status": resolved.cache_status,
+		"provider_keys": ["auth-cloudflare-workers-ai", "cloudflare"],
+		"model_count": models.len(),
+		"models": models,
+	});
 	(exit, value)
 }
 
@@ -1338,6 +1409,19 @@ fn degraded_model_warning(model_id: &str) -> Option<String> {
 
 /// `catalog.generated.yaml` - user-copyable Hermes fragment, derived from
 /// the same records as `catalog get`.
+/// Reasoning capability label for the exported docs: the confirmed table
+/// (single source of truth - REASONING_EFFORTS_BY_MODEL) wins over the
+/// catalog's role-marker classification, so documented reasoning models
+/// render as `confirmed (low|medium|high)` instead of `unknown`.
+fn reasoning_label(record: &ModelRecord) -> String {
+	let efforts = reasoning_efforts_for(&record.id);
+	if efforts.is_empty() {
+		enum_str(&record.capabilities.reasoning)
+	} else {
+		format!("confirmed ({})", efforts.join(", "))
+	}
+}
+
 fn export_yaml(records: &[ModelRecord], source: &str, fetched_at: &str, policy: &ModelPolicy) -> String {
 	let mut s = String::new();
 	s.push_str("# GENERATED FILE - do not edit by hand.\n");
@@ -1371,7 +1455,7 @@ fn export_yaml(records: &[ModelRecord], source: &str, fetched_at: &str, policy: 
 			price(record.pricing.output)
 		));
 		s.push_str(&format!("	# Tools: {}\n", enum_str(&record.capabilities.tools)));
-		s.push_str(&format!("	# Reasoning: {}\n", enum_str(&record.capabilities.reasoning)));
+		s.push_str(&format!("	# Reasoning: {}\n", reasoning_label(record)));
 		s.push_str(&format!("	- \"{}\"\n", record.id));
 	}
 	s
@@ -1413,7 +1497,7 @@ fn export_markdown(records: &[ModelRecord], source: &str, fetched_at: &str, poli
 			price(record.pricing.cached_input),
 			price(record.pricing.output),
 			enum_str(&record.capabilities.tools),
-			enum_str(&record.capabilities.reasoning)
+			reasoning_label(record)
 		));
 	}
 	s
@@ -1653,6 +1737,8 @@ mod tests {
 				Command::ModelInspect { model_id: "@cf/deepseek-ai/deepseek-v4-flash-0731".to_string() },
 			),
 			(&["policy", "get", "--format", "json"], Command::PolicyGet),
+			(&["models", "sync"], Command::ModelsSync),
+			(&["models", "sync", "--format", "json"], Command::ModelsSync),
 		];
 		for (args, expected) in cases {
 			let owned: Vec<String> = args.iter().map(|arg| (*arg).to_string()).collect();
@@ -1901,6 +1987,81 @@ mod tests {
 			},
 		);
 		let _ = std::fs::remove_dir_all(&home);
+	}
+
+	#[test]
+	fn models_sync_fresh_cache_emits_capability_records() {
+		let home = scratch_dir("sync-fresh");
+		let _ = std::fs::remove_dir_all(&home);
+		with_env(
+			&[
+				(ACCOUNT_ENV, Some(ACCOUNT)),
+				(TOKEN_ENV, Some(TOKEN)),
+				("HERMES_HOME", Some(home.to_str().unwrap())),
+			],
+			|| {
+				seed_cache(
+					&chrono::Utc::now().to_rfc3339(),
+					&[
+						"@cf/deepseek-ai/deepseek-v4-flash-0731",
+						"@cf/meta/llama-guard-3-8b",
+						"@cf/qwen/qwen3.8-27b",
+						"@cf/meta/llama-3.2-11b-vision-instruct",
+					],
+				);
+				let (code, value) = run_json(&["models", "sync", "--format", "json"]);
+				assert_eq!(code, EXIT_OK);
+				assert_eq!(value["command"], "models sync");
+				assert_eq!(value["source"], "cache");
+				assert_eq!(
+					value["provider_keys"],
+					serde_json::json!(["auth-cloudflare-workers-ai", "cloudflare"])
+				);
+				let models = value["models"].as_array().expect("models array");
+				// The safety model is not primary-agent-eligible and must never
+				// carry a Hermes capability record.
+				assert!(
+					!models.iter().any(|m| m["id"] == "@cf/meta/llama-guard-3-8b"),
+					"guard must be filtered out"
+				);
+				assert_eq!(value["model_count"].as_u64(), Some(models.len() as u64));
+				let flash = models
+					.iter()
+					.find(|m| m["id"] == "@cf/deepseek-ai/deepseek-v4-flash-0731")
+					.expect("flash present");
+				assert_eq!(flash["tool_call"], true);
+				assert_eq!(flash["reasoning"], true);
+				assert_eq!(flash["reasoning_efforts"], serde_json::json!(["low", "medium", "high"]));
+				assert_eq!(flash["model_family"], "deepseek-flash");
+				// context_length was not in the seeded catalog entry - omitted, not null.
+				assert!(flash.get("context_window").is_none());
+				assert!(flash["pricing_per_million"].is_object());
+				// Dotted model ids survive as literal record ids.
+				assert!(models.iter().any(|m| m["id"] == "@cf/qwen/qwen3.8-27b"));
+				let vision = models
+					.iter()
+					.find(|m| m["id"] == "@cf/meta/llama-3.2-11b-vision-instruct")
+					.expect("vision model present");
+				assert_eq!(vision["supports_vision"], true);
+			},
+		);
+		let _ = std::fs::remove_dir_all(&home);
+	}
+
+	#[test]
+	fn models_sync_fallback_emits_shaped_records() {
+		with_env(&[], || {
+			let (code, value) = run_json(&["models", "sync", "--format", "json"]);
+			assert_eq!(code, EXIT_OK);
+			assert_eq!(value["source"], "fallback");
+			let models = value["models"].as_array().expect("models array");
+			assert!(!models.is_empty());
+			assert_eq!(value["model_count"].as_u64(), Some(models.len() as u64));
+			for model in models {
+				assert!(model["id"].is_string());
+				assert!(model["pricing_per_million"].is_object());
+			}
+		});
 	}
 
 	#[test]

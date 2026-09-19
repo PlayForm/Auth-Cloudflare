@@ -1,189 +1,196 @@
 # GENERATED FILE - do not edit by hand.
 # Source: Cloudflare Workers AI catalog (cache)
-# Refreshed: 2026-09-09T19:04:54.716088+00:00
+# Refreshed: 2026-09-19T03:35:27.436084+00:00
 # Plugin policy: model-policy.yaml
 # Verification: model-health.json
 
 models:
-  # available | OpenAI: Gpt Oss 120B
-  # Status: available
-  # Context: 128000 tokens
-  # Price: $0.35/M input; unknown cached input; $0.75/M output
-  # Tools: confirmed
-  # Reasoning: unknown
-  - "@cf/openai/gpt-oss-120b"
-  # available | Meta: Llama 3.2 3B Instruct
-  # Status: available
-  # Context: 80000 tokens
-  # Price: $0.05/M input; unknown cached input; $0.34/M output
-  # Tools: unknown
-  # Reasoning: unknown
-  - "@cf/meta/llama-3.2-3b-instruct"
-  # hidden | Meta: Llama Guard 3 8B
-  # Status: hidden
-  # Context: 131072 tokens
-  # Price: $0.48/M input; unknown cached input; $0.03/M output
-  # Tools: unsupported
-  # Reasoning: unknown
-  - "@cf/meta/llama-guard-3-8b"
-  # recommended | MoonshotAI: Kimi K2.7 Code
-  # Status: recommended
-  # Context: 262144 tokens
-  # Price: $0.95/M input; unknown cached input; $4.00/M output
-  # Tools: confirmed
-  # Reasoning: unknown
-  - "@cf/moonshotai/kimi-k2.7-code"
-  # available | DeepSeek: Deepseek R1 Distill Qwen 32B
-  # Status: available
-  # Context: 80000 tokens
-  # Price: $0.50/M input; unknown cached input; $4.88/M output
-  # Tools: unknown
-  # Reasoning: unknown
-  - "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b"
-  # available | Meta: Llama 3.1 8B Instruct fp8
-  # Status: available
-  # Context: 32000 tokens
-  # Price: $0.15/M input; unknown cached input; $0.29/M output
-  # Tools: unknown
-  # Reasoning: unknown
-  - "@cf/meta/llama-3.1-8b-instruct-fp8"
-  # experimental | Z.ai: Glm 5.3 Flash
-  # Status: experimental
-  # Context: 1310720 tokens
-  # Price: $0.15/M input; unknown cached input; $0.50/M output
-  # Tools: confirmed
-  # Reasoning: unknown
-  - "@cf/zai-org/glm-5.3-flash"
-  # available | Meta: Llama 3.2 1B Instruct
-  # Status: available
-  # Context: 60000 tokens
-  # Price: $0.03/M input; unknown cached input; $0.20/M output
-  # Tools: unknown
-  # Reasoning: unknown
-  - "@cf/meta/llama-3.2-1b-instruct"
-  # available | MoonshotAI: Kimi K2.6
-  # Status: available
-  # Context: 262144 tokens
-  # Price: $0.95/M input; unknown cached input; $4.00/M output
-  # Tools: confirmed
-  # Reasoning: unknown
-  - "@cf/moonshotai/kimi-k2.6"
-  # available | Z.ai: Glm 4.7 Flash
-  # Status: available
-  # Context: 131072 tokens
-  # Price: $0.06/M input; unknown cached input; $0.40/M output
-  # Tools: unknown
-  # Reasoning: unknown
-  - "@cf/zai-org/glm-4.7-flash"
-  # available | Meta: Llama 3.3 70B Instruct fp8 Fast
-  # Status: available
-  # Context: 24000 tokens
-  # Price: $0.29/M input; unknown cached input; $2.25/M output
-  # Tools: confirmed
-  # Reasoning: unknown
-  - "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
-  # available | IBM: Granite 4.0 H Micro
-  # Status: available
-  # Context: 131000 tokens
-  # Price: $0.02/M input; unknown cached input; $0.11/M output
-  # Tools: confirmed
-  # Reasoning: unknown
-  - "@cf/ibm-granite/granite-4.0-h-micro"
-  # DEFAULT | DeepSeek: Deepseek V4 Flash 0731
-  # Status: recommended
-  # Context: 1310720 tokens
-  # Price: $0.44/M input; unknown cached input; $1.32/M output
-  # Tools: confirmed
-  # Reasoning: unknown
-  - "@cf/deepseek-ai/deepseek-v4-flash-0731"
-  # available | Qwen: Qwen2.5 Coder 32B Instruct
-  # Status: available
-  # Context: 32768 tokens
-  # Price: $0.66/M input; unknown cached input; $1.00/M output
-  # Tools: unknown
-  # Reasoning: unknown
-  - "@cf/qwen/qwen2.5-coder-32b-instruct"
-  # available | Z.ai: Glm 5.2
-  # Status: available
-  # Context: 262144 tokens
-  # Price: $1.40/M input; unknown cached input; $4.40/M output
-  # Tools: confirmed
-  # Reasoning: unknown
-  - "@cf/zai-org/glm-5.2"
-  # available | NVIDIA: Nemotron 3 120B A12b
-  # Status: available
-  # Context: 256000 tokens
-  # Price: $0.50/M input; unknown cached input; $1.50/M output
-  # Tools: confirmed
-  # Reasoning: unknown
-  - "@cf/nvidia/nemotron-3-120b-a12b"
-  # available | AI Singapore: Gemma Sea Lion V4 27B It
-  # Status: available
-  # Context: 128000 tokens
-  # Price: $0.35/M input; unknown cached input; $0.55/M output
-  # Tools: unknown
-  # Reasoning: unknown
-  - "@cf/aisingapore/gemma-sea-lion-v4-27b-it"
-  # available | Qwen: Qwen3 30B A3b fp8
-  # Status: available
-  # Context: 32768 tokens
-  # Price: $0.05/M input; unknown cached input; $0.34/M output
-  # Tools: confirmed
-  # Reasoning: unknown
-  - "@cf/qwen/qwen3-30b-a3b-fp8"
-  # available | Google: Gemma 4 26B A4b It
-  # Status: available
-  # Context: 256000 tokens
-  # Price: $0.10/M input; unknown cached input; $0.30/M output
-  # Tools: unknown
-  # Reasoning: unknown
-  - "@cf/google/gemma-4-26b-a4b-it"
-  # available | Mistral: Mistral Small 3.1 24B Instruct
-  # Status: available
-  # Context: 128000 tokens
-  # Price: $0.35/M input; unknown cached input; $0.55/M output
-  # Tools: confirmed
-  # Reasoning: unknown
-  - "@cf/mistralai/mistral-small-3.1-24b-instruct"
-  # recommended | DeepSeek: Deepseek V4 Pro 0813
-  # Status: recommended
-  # Context: 1048576 tokens
-  # Price: $1.32/M input; unknown cached input; $3.96/M output
-  # Tools: confirmed
-  # Reasoning: unknown
-  - "@cf/deepseek-ai/deepseek-v4-pro-0813"
-  # available | Meta: Llama 3.2 11B Vision Instruct
-  # Status: available
-  # Context: 128000 tokens
-  # Price: $0.05/M input; unknown cached input; $0.68/M output
-  # Tools: unknown
-  # Reasoning: unknown
-  - "@cf/meta/llama-3.2-11b-vision-instruct"
-  # available | Qwen: Qwen3.8 27B
-  # Status: available
-  # Context: 262144 tokens
-  # Price: $0.45/M input; unknown cached input; $3.20/M output
-  # Tools: confirmed
-  # Reasoning: unknown
-  - "@cf/qwen/qwen3.8-27b"
-  # available | OpenAI: Gpt Oss 20B
-  # Status: available
-  # Context: 128000 tokens
-  # Price: $0.20/M input; unknown cached input; $0.30/M output
-  # Tools: confirmed
-  # Reasoning: unknown
-  - "@cf/openai/gpt-oss-20b"
-  # available | Meta: Llama 4 Scout 17B 16e Instruct
-  # Status: available
-  # Context: 131000 tokens
-  # Price: $0.27/M input; unknown cached input; $0.85/M output
-  # Tools: confirmed
-  # Reasoning: unknown
-  - "@cf/meta/llama-4-scout-17b-16e-instruct"
-  # available | Qwen: Qwq 32B
-  # Status: available
-  # Context: 24000 tokens
-  # Price: $0.66/M input; unknown cached input; $1.00/M output
-  # Tools: unknown
-  # Reasoning: unknown
-  - "@cf/qwen/qwq-32b"
+	# available | OpenAI: Gpt Oss 120B
+	# Status: available
+	# Context: 128000 tokens
+	# Price: $0.35/M input; unknown cached input; $0.75/M output
+	# Tools: confirmed
+	# Reasoning: unknown
+	- "@cf/openai/gpt-oss-120b"
+	# available | Meta: Llama 3.2 3B Instruct
+	# Status: available
+	# Context: 80000 tokens
+	# Price: $0.05/M input; unknown cached input; $0.34/M output
+	# Tools: unknown
+	# Reasoning: unknown
+	- "@cf/meta/llama-3.2-3b-instruct"
+	# hidden | Meta: Llama Guard 3 8B
+	# Status: hidden
+	# Context: 131072 tokens
+	# Price: $0.48/M input; unknown cached input; $0.03/M output
+	# Tools: unsupported
+	# Reasoning: unknown
+	- "@cf/meta/llama-guard-3-8b"
+	# recommended | MoonshotAI: Kimi K2.7 Code
+	# Status: recommended
+	# Context: 262144 tokens
+	# Price: $0.95/M input; unknown cached input; $4.00/M output
+	# Tools: confirmed
+	# Reasoning: confirmed (low, medium, high)
+	- "@cf/moonshotai/kimi-k2.7-code"
+	# experimental | Z.ai: Glm 5.3
+	# Status: experimental
+	# Context: 1310720 tokens
+	# Price: $1.40/M input; unknown cached input; $4.40/M output
+	# Tools: confirmed
+	# Reasoning: confirmed (low, medium, high)
+	- "@cf/zai-org/glm-5.3"
+	# available | DeepSeek: Deepseek R1 Distill Qwen 32B
+	# Status: available
+	# Context: 80000 tokens
+	# Price: $0.50/M input; unknown cached input; $4.88/M output
+	# Tools: unknown
+	# Reasoning: confirmed (low, medium, high)
+	- "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b"
+	# available | Meta: Llama 3.1 8B Instruct fp8
+	# Status: available
+	# Context: 32000 tokens
+	# Price: $0.15/M input; unknown cached input; $0.29/M output
+	# Tools: unknown
+	# Reasoning: unknown
+	- "@cf/meta/llama-3.1-8b-instruct-fp8"
+	# experimental | Z.ai: Glm 5.3 Flash
+	# Status: experimental
+	# Context: 1310720 tokens
+	# Price: $0.15/M input; unknown cached input; $0.50/M output
+	# Tools: confirmed
+	# Reasoning: confirmed (low, medium, high)
+	- "@cf/zai-org/glm-5.3-flash"
+	# available | Meta: Llama 3.2 1B Instruct
+	# Status: available
+	# Context: 60000 tokens
+	# Price: $0.03/M input; unknown cached input; $0.20/M output
+	# Tools: unknown
+	# Reasoning: unknown
+	- "@cf/meta/llama-3.2-1b-instruct"
+	# available | MoonshotAI: Kimi K2.6
+	# Status: available
+	# Context: 262144 tokens
+	# Price: $0.95/M input; unknown cached input; $4.00/M output
+	# Tools: confirmed
+	# Reasoning: confirmed (low, medium, high)
+	- "@cf/moonshotai/kimi-k2.6"
+	# available | Z.ai: Glm 4.7 Flash
+	# Status: available
+	# Context: 131072 tokens
+	# Price: $0.06/M input; unknown cached input; $0.40/M output
+	# Tools: unknown
+	# Reasoning: unknown
+	- "@cf/zai-org/glm-4.7-flash"
+	# available | Meta: Llama 3.3 70B Instruct fp8 Fast
+	# Status: available
+	# Context: 24000 tokens
+	# Price: $0.29/M input; unknown cached input; $2.25/M output
+	# Tools: confirmed
+	# Reasoning: unknown
+	- "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+	# available | IBM: Granite 4.0 H Micro
+	# Status: available
+	# Context: 131000 tokens
+	# Price: $0.02/M input; unknown cached input; $0.11/M output
+	# Tools: confirmed
+	# Reasoning: unknown
+	- "@cf/ibm-granite/granite-4.0-h-micro"
+	# DEFAULT | DeepSeek: Deepseek V4 Flash 0731
+	# Status: recommended
+	# Context: 1310720 tokens
+	# Price: $0.44/M input; unknown cached input; $1.32/M output
+	# Tools: confirmed
+	# Reasoning: confirmed (low, medium, high)
+	- "@cf/deepseek-ai/deepseek-v4-flash-0731"
+	# available | Qwen: Qwen2.5 Coder 32B Instruct
+	# Status: available
+	# Context: 32768 tokens
+	# Price: $0.66/M input; unknown cached input; $1.00/M output
+	# Tools: unknown
+	# Reasoning: unknown
+	- "@cf/qwen/qwen2.5-coder-32b-instruct"
+	# available | Z.ai: Glm 5.2
+	# Status: available
+	# Context: 262144 tokens
+	# Price: $1.40/M input; unknown cached input; $4.40/M output
+	# Tools: confirmed
+	# Reasoning: unknown
+	- "@cf/zai-org/glm-5.2"
+	# available | NVIDIA: Nemotron 3 120B A12b
+	# Status: available
+	# Context: 256000 tokens
+	# Price: $0.50/M input; unknown cached input; $1.50/M output
+	# Tools: confirmed
+	# Reasoning: unknown
+	- "@cf/nvidia/nemotron-3-120b-a12b"
+	# available | AI Singapore: Gemma Sea Lion V4 27B It
+	# Status: available
+	# Context: 128000 tokens
+	# Price: $0.35/M input; unknown cached input; $0.55/M output
+	# Tools: unknown
+	# Reasoning: unknown
+	- "@cf/aisingapore/gemma-sea-lion-v4-27b-it"
+	# available | Qwen: Qwen3 30B A3b fp8
+	# Status: available
+	# Context: 32768 tokens
+	# Price: $0.05/M input; unknown cached input; $0.34/M output
+	# Tools: confirmed
+	# Reasoning: unknown
+	- "@cf/qwen/qwen3-30b-a3b-fp8"
+	# available | Google: Gemma 4 26B A4b It
+	# Status: available
+	# Context: 256000 tokens
+	# Price: $0.10/M input; unknown cached input; $0.30/M output
+	# Tools: unknown
+	# Reasoning: unknown
+	- "@cf/google/gemma-4-26b-a4b-it"
+	# available | Mistral: Mistral Small 3.1 24B Instruct
+	# Status: available
+	# Context: 128000 tokens
+	# Price: $0.35/M input; unknown cached input; $0.55/M output
+	# Tools: confirmed
+	# Reasoning: unknown
+	- "@cf/mistralai/mistral-small-3.1-24b-instruct"
+	# recommended | DeepSeek: Deepseek V4 Pro 0813
+	# Status: recommended
+	# Context: 1048576 tokens
+	# Price: $1.32/M input; unknown cached input; $3.96/M output
+	# Tools: confirmed
+	# Reasoning: confirmed (low, medium, high)
+	- "@cf/deepseek-ai/deepseek-v4-pro-0813"
+	# available | Meta: Llama 3.2 11B Vision Instruct
+	# Status: available
+	# Context: 128000 tokens
+	# Price: $0.05/M input; unknown cached input; $0.68/M output
+	# Tools: unknown
+	# Reasoning: unknown
+	- "@cf/meta/llama-3.2-11b-vision-instruct"
+	# available | Qwen: Qwen3.8 27B
+	# Status: available
+	# Context: 262144 tokens
+	# Price: $0.45/M input; unknown cached input; $3.20/M output
+	# Tools: confirmed
+	# Reasoning: unknown
+	- "@cf/qwen/qwen3.8-27b"
+	# available | OpenAI: Gpt Oss 20B
+	# Status: available
+	# Context: 128000 tokens
+	# Price: $0.20/M input; unknown cached input; $0.30/M output
+	# Tools: confirmed
+	# Reasoning: unknown
+	- "@cf/openai/gpt-oss-20b"
+	# available | Meta: Llama 4 Scout 17B 16e Instruct
+	# Status: available
+	# Context: 131000 tokens
+	# Price: $0.27/M input; unknown cached input; $0.85/M output
+	# Tools: confirmed
+	# Reasoning: unknown
+	- "@cf/meta/llama-4-scout-17b-16e-instruct"
+	# available | Qwen: Qwq 32B
+	# Status: available
+	# Context: 24000 tokens
+	# Price: $0.66/M input; unknown cached input; $1.00/M output
+	# Tools: unknown
+	# Reasoning: confirmed (low, medium, high)
+	- "@cf/qwen/qwq-32b"
