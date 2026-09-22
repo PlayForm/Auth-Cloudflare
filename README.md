@@ -394,6 +394,30 @@ pnpm FormatCheck               # prettier --check over the repo
 - Git flow is a reverse-PR workflow: `feat-dev`/`trunk` branches, `Source`
   remote, no direct pushes - see the `cloudflare-dev-workflow` skill.
 
+### Refreshing the catalog & fixtures
+
+The bundled catalog fixtures and policy lists are generated from a Workers AI
+catalog snapshot - never hand-edited. To refresh them:
+
+```sh
+./scripts/regenerate-fixtures.sh                 # live: fresh snapshot via the auth-cloudflare binary
+./scripts/regenerate-fixtures.sh --snapshot path # offline: from a recorded snapshot JSON
+AUTH_CLOUDFLARE_SNAPSHOT=path ./scripts/regenerate-fixtures.sh
+```
+
+The generator (`scripts/regenerate-fixtures.py`, stdlib-only, supports
+`--dry-run`) rewrites the six model fixtures in
+`crates/auth-cloudflare/fixtures/models/`, the `FALLBACK_MODELS` /
+`EXPERIMENTAL_MODELS` / `HIDDEN_MODELS` / `VISION_CONFIRMED` lists in
+`crates/auth-cloudflare/src/catalog.rs`, the plugin's OpenRouter-format
+`plugins/auth-hermes-cloudflare/fixtures/workers_ai_catalog.json`, and the
+plugin defaults
+`plugins/auth-hermes-cloudflare/fixtures/plugin_defaults.json`. Curated
+fields (names, descriptions, policy reasons, ranks) are preserved; only
+pricing, context lengths, and status-list membership are taken from the
+snapshot. The wrapper finishes by running the full `cargo test -p
+auth-cloudflare` suite. Recorded snapshots live in `.playform/tmp/`.
+
 ---
 
 ## Relationship to Hermes Agent 🔗
