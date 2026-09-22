@@ -36,9 +36,9 @@ hermes
 **`Terminal`**
 
 ```sh
-export CLOUDFLARE_ACCOUNT_ID="<your account id>"   # Workers & Pages → Overview
-export CLOUDFLARE_API_TOKEN="<scoped token>"       # Account → Workers AI → Write
-hermes model                                       # pick: Auth Cloudflare Workers AI
+export CLOUDFLARE_ACCOUNT_ID="<your account id>" # Workers & Pages → Overview
+export CLOUDFLARE_API_TOKEN="<scoped token>"     # Account → Workers AI → Write
+hermes model                                     # pick: Auth Cloudflare Workers AI
 ```
 
 The account ID is operational metadata, not a secret. The API token **is** a
@@ -65,8 +65,8 @@ The Rust core ships as a single executable. Install it any of these ways:
 **`Terminal`** - cargo install (needs a Rust toolchain):
 
 ```sh
-cargo install auth-cloudflare --locked           # engine executable
-cargo install auth-hermes-cloudflare --locked    # optional plugin utility CLI
+cargo install auth-cloudflare --locked        # engine executable
+cargo install auth-hermes-cloudflare --locked # optional plugin utility CLI
 ```
 
 `auth-cloudflare` is the engine the plugin talks to; `auth-hermes-cloudflare`
@@ -89,8 +89,8 @@ installs to `~/.hermes/bin/auth-cloudflare` by default (override with
 **`Terminal`** - verify the install:
 
 ```sh
-auth-cloudflare doctor --format json    # redacted status, binary-backed
-hermes cloudflare doctor                # same report through the plugin CLI
+auth-cloudflare doctor --format json # redacted status, binary-backed
+hermes cloudflare doctor             # same report through the plugin CLI
 ```
 
 ### From source
@@ -380,10 +380,10 @@ Not supported in this release:
 **`Terminal`**
 
 ```sh
-cargo test --workspace          # unit tests: endpoint stability, token redaction
+cargo test --workspace # unit tests: endpoint stability, token redaction
 cargo clippy --workspace -- -D warnings
 cargo fmt --all --check
-pnpm FormatCheck               # prettier --check over the repo
+pnpm FormatCheck # prettier --check over the repo
 ```
 
 - CI `Check.yml` runs fmt, clippy, and tests on every push/PR.
