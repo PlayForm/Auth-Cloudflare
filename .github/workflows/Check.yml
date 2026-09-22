@@ -161,6 +161,14 @@ jobs:
                   req = ("success", "errors")
               elif base.startswith("workers_ai_catalog"):
                   req = ("data",)
+              elif base.startswith("plugin_defaults"):
+                  req = (
+                      "schema_version",
+                      "default_model",
+                      "model_policy",
+                      "primary_agent_models",
+                      "fallback_models",
+                  )
               else:
                   print("FAIL", base, "unexpected fixture name")
                   ok = False
