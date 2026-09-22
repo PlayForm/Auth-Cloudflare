@@ -1,9 +1,9 @@
 # Cloudflare Workers AI catalog
 
 Generated: 2026-09-22T17:59:48.353540+00:00
-Plugin: 0.0.2
+Plugin: 0.0.3
 Catalog: cache
-Cache age: 4380 seconds
+Cache age: 5416 seconds
 Models found: 27
 Primary-agent eligible: 26
 
