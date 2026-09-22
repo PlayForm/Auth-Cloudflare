@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.0.4
+
+### Change
+
+- Bumped package version from 0.0.3 to 0.0.4 (crates `auth-cloudflare` and
+  `auth-hermes-cloudflare` incl. the path-dep pin, package.json, plugin.yaml,
+  BINARY_VERSION, README badges, version fixture).
+- CI/release machinery only (no crate or plugin source changes):
+    - Build.yml Finalize now checks out submodules (in-tree `SHA256SUMS.txt`
+      generation previously failed on the missing child tree) and pushes the
+      child commit via a Release-environment fine-grained PAT
+      (`PLAYFORM_RELEASE_PAT`), failing loudly when the secret is missing.
+    - Check.yml fixture validation recognizes the generated
+      `plugin_defaults.json` fixture.
+
 ## 0.0.3
 
 ### Change

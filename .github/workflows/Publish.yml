@@ -165,9 +165,9 @@ jobs:
       - name: Build release
         run: cargo build --release -p auth-hermes-cloudflare
 
-      # auth-hermes-cloudflare path-depends on auth-cloudflare (version 0.0.3),
+      # auth-hermes-cloudflare path-depends on auth-cloudflare (version 0.0.4),
       # and `cargo publish` strips the path key, so it can only publish once a
-      # matching auth-cloudflare 0.0.3 is live on crates.io (published by the
+      # matching auth-cloudflare 0.0.4 is live on crates.io (published by the
       # preceding Publish-auth-cloudflare job). Opt-in semantics and the
       # index-version skip are the same as above.
       - name: Check if auth-hermes-cloudflare version is already published
