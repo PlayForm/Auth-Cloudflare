@@ -6,8 +6,8 @@
   "context_length": 262144,
   "created": 1788800000,
   "pricing": {
-    "prompt": "0.0000006",
-    "completion": "0.0000024",
+    "prompt": "0.00000095",
+    "completion": "0.000004",
     "request": "0"
   }
 }

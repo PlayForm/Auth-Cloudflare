@@ -8,6 +8,7 @@
 	"bracketSpacing": true,
 	"arrowParens": "always",
 	"endOfLine": "lf",
+	"plugins": ["prettier-plugin-sh"],
 	"overrides": [
 		{
 			"files": ["*.yml", "*.yaml"],

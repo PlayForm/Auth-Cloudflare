@@ -92,8 +92,9 @@ fn deepseek_pro_fixture_normalizes_to_recommended() {
 
 	let input = record.pricing.input.expect("input price present");
 	let output = record.pricing.output.expect("output price present");
-	assert!((input - 1.1).abs() < 1e-9, "input price {input} != 1.1");
-	assert!((output - 4.4).abs() < 1e-9, "output price {output} != 4.4");
+	// Live 2026-09-22 (catalog-2026-09-22.json): 1.32/3.96 per M.
+	assert!((input - 1.32).abs() < 1e-9, "input price {input} != 1.32");
+	assert!((output - 3.96).abs() < 1e-9, "output price {output} != 3.96");
 
 	let policy = ModelPolicy::default_policy();
 	assert_eq!(policy.status_for(&record.id), ModelStatus::Recommended);
@@ -114,8 +115,9 @@ fn kimi_fixture_normalizes_to_recommended() {
 
 	let input = record.pricing.input.expect("input price present");
 	let output = record.pricing.output.expect("output price present");
-	assert!((input - 0.6).abs() < 1e-9, "input price {input} != 0.6");
-	assert!((output - 2.4).abs() < 1e-9, "output price {output} != 2.4");
+	// Live 2026-09-22 (catalog-2026-09-22.json): 0.95/4.0 per M.
+	assert!((input - 0.95).abs() < 1e-9, "input price {input} != 0.95");
+	assert!((output - 4.0).abs() < 1e-9, "output price {output} != 4.0");
 
 	let policy = ModelPolicy::default_policy();
 	assert_eq!(policy.status_for(&record.id), ModelStatus::Recommended);
@@ -136,8 +138,9 @@ fn gpt_oss_fixture_normalizes_to_available() {
 
 	let input = record.pricing.input.expect("input price present");
 	let output = record.pricing.output.expect("output price present");
-	assert!((input - 0.6).abs() < 1e-9, "input price {input} != 0.6");
-	assert!((output - 1.8).abs() < 1e-9, "output price {output} != 1.8");
+	// Live 2026-09-22 (catalog-2026-09-22.json): 0.35/0.75 per M.
+	assert!((input - 0.35).abs() < 1e-9, "input price {input} != 0.35");
+	assert!((output - 0.75).abs() < 1e-9, "output price {output} != 0.75");
 
 	let policy = ModelPolicy::default_policy();
 	assert_eq!(policy.status_for(&record.id), ModelStatus::Available);

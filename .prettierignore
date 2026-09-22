@@ -1,0 +1,362 @@
+# Auth-Cloudflare Prettier ignore
+# Designed for VS Code `**/*` glob - excludes everything Prettier can't parse
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Formatters that own their own file types
+# ══════════════════════════════════════════════════════════════════════════════
+
+# Rust - rustfmt owns .rs formatting
+*.rs
+
+# TOML - taplo / even-better-toml owns .toml
+*.toml
+
+# Python - ruff/black owns .py
+*.py
+*.pyi
+*.pyc
+*.pyo
+__pycache__/
+**/__pycache__/
+.venv/
+venv/
+
+# Shell - prettier-plugin-sh owns .sh (format via Maintain/Format.sh)
+*.bash
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Vendored / submodules / generated code
+# ══════════════════════════════════════════════════════════════════════════════
+
+vendor/
+**/vendor/
+**/vendor/**
+
+plugins/
+**/plugins/
+**/plugins/**
+
+# Generated / codegen
+**/Generated/
+**/Generated/**
+**/.generated/
+**/.generated/**
+**/gen/
+**/gen/**
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Rust / Cargo build artifacts
+# ══════════════════════════════════════════════════════════════════════════════
+
+target/
+Target/
+**/target/
+**/target/**
+**/Target/
+**/Target/**
+**/.fingerprint
+**/.fingerprint/**
+**/incremental
+**/incremental/**
+**/deps
+**/deps/**
+.cargo/
+Cargo.lock
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Node / package manager
+# ══════════════════════════════════════════════════════════════════════════════
+
+node_modules/
+**/node_modules/
+**/node_modules/**
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+.pnpm-debug.log
+debug.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.eslintcache
+.turbo
+**/.turbo
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Hermes runtime data
+# ══════════════════════════════════════════════════════════════════════════════
+
+.hermes/
+**/.hermes/
+**/.hermes/**
+profiles/
+**/profiles/
+**/profiles/**
+*.session
+*.session.*
+
+# .playform/ is the gitignored dev archive (briefs, feedback, schemas) -
+# never format it.
+.playform/
+**/.playform/
+**/.playform/**
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Git / VCS
+# ══════════════════════════════════════════════════════════════════════════════
+
+.git/
+**/.git/
+**/.git/**
+.gitmodules
+.gitattributes
+.gitignore
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Binary / generated / archive formats
+# ══════════════════════════════════════════════════════════════════════════════
+
+# Images
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.ico
+*.svg
+*.webp
+*.bmp
+*.tiff
+*.avif
+
+# Fonts
+*.woff
+*.woff2
+*.ttf
+*.eot
+*.otf
+
+# Archives
+*.gz
+*.tar
+*.tar.gz
+*.tgz
+*.zip
+*.7z
+*.rar
+*.bz2
+*.xz
+
+# Binaries / executables
+*.wasm
+*.bin
+*.exe
+*.dll
+*.so
+*.dylib
+*.dmg
+*.pkg
+*.app
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+*.sqlite-wal
+*.sqlite-shm
+
+# Documents
+*.pdf
+*.doc
+*.docx
+*.xls
+*.xlsx
+*.ppt
+*.pptx
+*.odt
+*.ods
+
+# Audio / video
+*.mp3
+*.mp4
+*.wav
+*.ogg
+*.flac
+*.avi
+*.mov
+*.mkv
+*.webm
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Cache / temp / lock files
+# ══════════════════════════════════════════════════════════════════════════════
+
+*.cache
+*.tmp
+*.temp
+*.log
+*.lock
+*.bak
+*.backup
+*~
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Config / secrets (never format)
+# ══════════════════════════════════════════════════════════════════════════════
+
+.env
+.env.*
+*.pem
+*.key
+*.crt
+*.cert
+*.cer
+*.p12
+*.pfx
+*.token
+*credentials*
+*secret*
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Minified / bundled files
+# ══════════════════════════════════════════════════════════════════════════════
+
+*.min.js
+*.min.css
+*.min.js.map
+*.bundle.js
+*.bundle.css
+**/dist/
+**/dist/**
+**/build/
+**/build/**
+**/out/
+**/out/**
+
+# ══════════════════════════════════════════════════════════════════════════════
+# IDE / editor
+# ══════════════════════════════════════════════════════════════════════════════
+
+.idea/
+**/.idea/
+**/.idea/**
+*.sublime-*
+.project
+.classpath
+.settings/
+
+# ══════════════════════════════════════════════════════════════════════════════
+# CI / CD
+# ══════════════════════════════════════════════════════════════════════════════
+
+.github/
+**/.github/
+**/.github/**
+.gitlab-ci.yml
+.jenkins
+.travis.yml
+.azure-pipelines
+.circleci
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Misc - files Prettier chokes on
+# ══════════════════════════════════════════════════════════════════════════════
+
+# Compiled/bundled JS (not source)
+**/compiled/
+**/compiled/**
+**/transpiled/
+**/transpiled/**
+
+# Large data files
+*.csv
+*.tsv
+*.ndjson
+*.jsonl
+*.parquet
+*.arrow
+
+# Protocol buffers / schema
+*.proto
+*.pb
+*.graphqls
+*.graphql
+
+# Docker
+Dockerfile
+.dockerignore
+*.dockerfile
+
+# License files (formatting breaks legal text)
+LICENSE
+LICENSE-*
+COPYING
+NOTICE
+
+# Graphviz / diagram sources
+*.dot
+*.mmd
+*.puml
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Test fixtures - intentionally invalid/malformed
+# ══════════════════════════════════════════════════════════════════════════════
+
+*fixture*
+*fixtures*
+*test_data*
+*test-fixtures*
+**/fixtures/
+**/fixtures/**
+**/test-fixtures/
+**/test-fixtures/**
+**/test_data/
+**/test_data/**
+*invalid*.yml
+*invalid*.yaml
+*invalid*.json
+*malformed*
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Coverage / profiling / docs output
+# ══════════════════════════════════════════════════════════════════════════════
+
+coverage/
+**/coverage/
+**/coverage/**
+.nyc_output/
+**/.nyc_output/
+*.profraw
+*.profdata
+**/Documentation/
+**/Documentation/**
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Package publishing
+# ══════════════════════════════════════════════════════════════════════════════
+
+.npmignore
+.npmrc
+*.tgz
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Minified / compressed (broad catch)
+# ══════════════════════════════════════════════════════════════════════════════
+
+*.min.*
+*-min.*
+*.bundle.*
+
+# plugins/auth-hermes-cloudflare is a separate submodule that formats
+# itself - re-include exactly that one README (gitignore semantics: the
+# directory exclusions above must be undone first, then everything under
+# plugins/auth-hermes-cloudflare re-excluded, then the README re-included -
+# a bare !file inside an excluded dir is a no-op).
+!plugins/
+!plugins/auth-hermes-cloudflare/
+plugins/auth-hermes-cloudflare/**
+!plugins/auth-hermes-cloudflare/README.md
