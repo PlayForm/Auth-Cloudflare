@@ -48,9 +48,9 @@ if [ -n "$SNAPSHOT" ]; then
 	echo "Using recorded snapshot: $SNAPSHOT"
 	python3 scripts/regenerate-fixtures.py --snapshot "$SNAPSHOT"
 else
-	BIN="$(command -v auth-cloudflare || true)"
+	BIN="${AUTH_CLOUDFLARE_BIN:-}"
 	if [ -z "$BIN" ]; then
-		BIN="${AUTH_CLOUDFLARE_BIN:-}"
+		BIN="$(command -v auth-cloudflare || true)"
 	fi
 	if [ -z "$BIN" ] || [ ! -x "$BIN" ]; then
 		echo "ERROR: auth-cloudflare binary not found (PATH or AUTH_CLOUDFLARE_BIN)" >&2
@@ -70,6 +70,17 @@ if [ -z "$SNAPSHOT" ]; then
 	fi
 else
 	echo "Offline snapshot mode - docs/ regeneration skipped (needs the account cache)."
+fi
+
+# Canonicalize the regenerated outputs: rustfmt for the edited Rust, then the
+# repo's prettier pass (same scope as FormatCheck). The exporter emits
+# prettier-clean YAML; the pass pads the markdown table and formats authored
+# files. Skipped with a warning when the local prettier install is missing.
+cargo fmt
+if [ -x "$REPO_ROOT/node_modules/.bin/prettier" ]; then
+	"$REPO_ROOT/node_modules/.bin/prettier" --write --ignore-path "$REPO_ROOT/.prettierignore" "$REPO_ROOT"
+else
+	echo "WARNING: local prettier not found (pnpm install) - skipping the prettier pass" >&2
 fi
 
 echo "Running the full auth-cloudflare crate suite..."

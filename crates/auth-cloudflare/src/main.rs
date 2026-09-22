@@ -1438,25 +1438,25 @@ fn export_yaml(records: &[ModelRecord], source: &str, fetched_at: &str, policy: 
 		} else {
 			status_str.clone()
 		};
-		s.push_str(&format!("	# {marker} | {}\n", record.display_name));
-		s.push_str(&format!("	# Status: {status_str}\n"));
+		s.push_str(&format!("  # {marker} | {}\n", record.display_name));
+		s.push_str(&format!("  # Status: {status_str}\n"));
 		match record.limits.context_tokens {
-			Some(tokens) => s.push_str(&format!("	# Context: {tokens} tokens\n")),
-			None => s.push_str("	# Context: unknown\n"),
+			Some(tokens) => s.push_str(&format!("  # Context: {tokens} tokens\n")),
+			None => s.push_str("  # Context: unknown\n"),
 		}
 		let price = |value: Option<f64>| match value {
 			Some(v) => format!("${v:.2}/M"),
 			None => "unknown".to_string(),
 		};
 		s.push_str(&format!(
-			"	# Price: {} input; {} cached input; {} output\n",
+			"  # Price: {} input; {} cached input; {} output\n",
 			price(record.pricing.input),
 			price(record.pricing.cached_input),
 			price(record.pricing.output)
 		));
-		s.push_str(&format!("	# Tools: {}\n", enum_str(&record.capabilities.tools)));
-		s.push_str(&format!("	# Reasoning: {}\n", reasoning_label(record)));
-		s.push_str(&format!("	- \"{}\"\n", record.id));
+		s.push_str(&format!("  # Tools: {}\n", enum_str(&record.capabilities.tools)));
+		s.push_str(&format!("  # Reasoning: {}\n", reasoning_label(record)));
+		s.push_str(&format!("  - \"{}\"\n", record.id));
 	}
 	s
 }

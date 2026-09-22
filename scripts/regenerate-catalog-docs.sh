@@ -18,9 +18,9 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 EXPORT_DIR="${AUTH_CLOUDFLARE_EXPORT_DIR:-$REPO_ROOT/docs}"
 mkdir -p "$EXPORT_DIR"
 
-BIN="$(command -v auth-cloudflare || true)"
+BIN="${AUTH_CLOUDFLARE_BIN:-}"
 if [ -z "$BIN" ]; then
-	BIN="${AUTH_CLOUDFLARE_BIN:-}"
+	BIN="$(command -v auth-cloudflare || true)"
 fi
 if [ -z "$BIN" ] || [ ! -x "$BIN" ]; then
 	echo "ERROR: auth-cloudflare binary not found (PATH or AUTH_CLOUDFLARE_BIN)" >&2

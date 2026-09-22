@@ -28,8 +28,8 @@ plugin registers the `cloudflare` provider (aliases: `cloudflare-ai`,
 ## Environment
 
 ```sh
-export CLOUDFLARE_ACCOUNT_ID="<account id>"   # Workers & Pages → Overview
-export CLOUDFLARE_API_TOKEN="<token>"         # Account → Cloudflare Workers AI → Edit
+export CLOUDFLARE_ACCOUNT_ID="<account id>" # Workers & Pages → Overview
+export CLOUDFLARE_API_TOKEN="<token>"       # Account → Cloudflare Workers AI → Edit
 ```
 
 The account ID is not a secret; the token is. Never paste a `cfut_…` token

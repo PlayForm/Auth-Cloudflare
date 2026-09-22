@@ -44,9 +44,6 @@ plugins/
 **/gen/
 **/gen/**
 
-# Generated catalog exports (auth-cloudflare catalog export; tab-indented YAML)
-docs/catalog.generated.*
-
 # ══════════════════════════════════════════════════════════════════════════════
 # Rust / Cargo build artifacts
 # ══════════════════════════════════════════════════════════════════════════════
