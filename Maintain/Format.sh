@@ -25,7 +25,7 @@
 
 set -e
 
-Current=$(cd -- "$(dirname -- "$0")" >/dev/null 2>&1 && pwd)
+Current=$(cd -- "$(dirname -- "$0")" > /dev/null 2>&1 && pwd)
 Root="$Current/.."
 
 #===============================================================================
@@ -40,7 +40,7 @@ FormatLineEndings() {
 	\echo "========================================"
 	\echo ""
 
-	if ! command -v dos2unix >/dev/null 2>&1; then
+	if ! command -v dos2unix > /dev/null 2>&1; then
 		\echo "Error: dos2unix is not installed."
 		\echo "  macOS:  brew install dos2unix"
 		\echo "  Linux:  apt install dos2unix  /  dnf install dos2unix"
@@ -62,8 +62,8 @@ FormatLineEndings() {
 		-not -path "*/.playform/*" \
 		-not -path "*/target/*" \
 		-not -path "*/node_modules/*" \
-		-not -path "*/.git/*" |
-		xargs dos2unix -q
+		-not -path "*/.git/*" \
+		| xargs dos2unix -q
 
 	\echo ""
 	\echo "Line ending conversion complete."
@@ -82,10 +82,10 @@ FormatShell() {
 	cd "$Root"
 
 	\echo "→ Installing dependencies…"
-	pnpm install --no-lockfile
+	pnpm install --ignore-workspace --no-lockfile
 
 	\echo "→ Running Prettier on shell scripts…"
-	pnpm exec prettier --write \
+	pnpm --ignore-workspace exec prettier --write \
 		--ignore-path .prettierignore \
 		"**/*.sh"
 
@@ -106,10 +106,10 @@ FormatPrettier() {
 	cd "$Root"
 
 	\echo "→ Installing dependencies…"
-	pnpm install --no-lockfile
+	pnpm install --ignore-workspace --no-lockfile
 
 	\echo "→ Running Prettier (md, json, yaml)…"
-	pnpm exec prettier --write \
+	pnpm --ignore-workspace exec prettier --write \
 		--ignore-path .prettierignore \
 		"**/*.md" \
 		"**/*.json" \
@@ -154,8 +154,8 @@ FormatRust() {
 		-not -path "*/.playform/*" \
 		-not -path "*/target/*" \
 		-not -path "*/node_modules/*" \
-		-not -path "*/.git/*" |
-		xargs -I {} sh -c \
+		-not -path "*/.git/*" \
+		| xargs -I {} sh -c \
 			'rustfmt --config-path rustfmt.toml "$1" 2>/dev/null || true' \
 			-- {}
 
@@ -174,37 +174,37 @@ FormatRust() {
 #===============================================================================
 
 case "${1:-}" in
-dos2unix)
-	FormatLineEndings
-	;;
-shell)
-	FormatShell
-	;;
-prettier)
-	FormatPrettier
-	;;
-rust)
-	FormatRust
-	;;
-"")
-	FormatLineEndings
-	FormatShell
-	FormatPrettier
-	FormatRust
-	\echo "→ Format complete."
-	;;
---help | -h)
-	\echo "Usage: $0 [dos2unix|shell|prettier|rust]"
-	\echo ""
-	\echo "  dos2unix  Normalize line endings (CRLF -> LF) with dos2unix"
-	\echo "  shell     Format shell scripts with Prettier (prettier-plugin-sh)"
-	\echo "  prettier  Format Markdown/JSON/YAML with Prettier"
-	\echo "  rust      Format Rust with rustfmt (stable 1.96.0)"
-	\echo "  (no arg)  Run all four in order"
-	;;
-*)
-	\echo "Unknown target: $1"
-	\echo "Use --help for usage information"
-	exit 1
-	;;
+	dos2unix)
+		FormatLineEndings
+		;;
+	shell)
+		FormatShell
+		;;
+	prettier)
+		FormatPrettier
+		;;
+	rust)
+		FormatRust
+		;;
+	"")
+		FormatLineEndings
+		FormatShell
+		FormatPrettier
+		FormatRust
+		\echo "→ Format complete."
+		;;
+	--help | -h)
+		\echo "Usage: $0 [dos2unix|shell|prettier|rust]"
+		\echo ""
+		\echo "  dos2unix  Normalize line endings (CRLF -> LF) with dos2unix"
+		\echo "  shell     Format shell scripts with Prettier (prettier-plugin-sh)"
+		\echo "  prettier  Format Markdown/JSON/YAML with Prettier"
+		\echo "  rust      Format Rust with rustfmt (stable 1.96.0)"
+		\echo "  (no arg)  Run all four in order"
+		;;
+	*)
+		\echo "Unknown target: $1"
+		\echo "Use --help for usage information"
+		exit 1
+		;;
 esac
