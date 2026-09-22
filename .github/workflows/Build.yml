@@ -32,7 +32,7 @@ jobs:
       # race to create it. No files are attached here - each Build leg
       # attaches only its own artifacts, and Finalize verifies the result.
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -63,7 +63,7 @@ jobs:
         with:
           submodules: recursive
 
-      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master (2026-07), pins to 1.96.0
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
         with:
           toolchain: 1.96.0
           targets: ${{ matrix.target }}
@@ -109,7 +109,7 @@ jobs:
           cat "SHA256SUMS-$T.txt"
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release-assets-${{ matrix.target }}
           path: |
@@ -123,7 +123,7 @@ jobs:
       # turns a slipped rename into a loud failure instead of a silent partial release.
       - name: Upload to release
         if: startsWith(github.ref, 'refs/tags/Cloudflare/v')
-        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           files: |
             auth-cloudflare-${{ matrix.target }}.tar.gz
