@@ -210,6 +210,11 @@ jobs:
             echo "SHA256SUMS.txt unchanged - nothing to commit"
           else
             git -C "${CHILD}" commit -m "chore: update in-tree SHA256SUMS.txt for v${V} (Build.yml)"
+            # actions/checkout persists a GITHUB_TOKEN Authorization
+            # extraheader that overrides URL credentials - drop it so the
+            # PAT below is actually used (otherwise the push 403s as
+            # github-actions[bot]).
+            git -C "${CHILD}" config --unset-all http.https://github.com/.extraheader || true
             # GITHUB_TOKEN is scoped to the parent repo and cannot push to the
             # child (PlayForm/Auth-Hermes-Cloudflare); the Release-environment
             # secret carries a fine-grained PAT with contents:write on the
