@@ -214,14 +214,25 @@ jobs:
         run: |
           set -euo pipefail
           CHILD="plugins/auth-hermes-cloudflare"
-          # Build.yml's Finalize may still be pushing the child commit when
-          # this job starts; retry the fetch briefly so the gitlink lands on
-          # the commit carrying the fresh SHA256SUMS.txt.
-          for i in 1 2 3 4 5; do
-            if git -C "${CHILD}" fetch origin Current 2>/dev/null; then break; fi
-            echo "child fetch attempt $i failed; retrying in 10s"
-            sleep 10
+          V="${GITHUB_REF_NAME#Cloudflare/v}"
+          # Build.yml's Finalize pushes the child commit carrying the fresh
+          # in-tree SHA256SUMS.txt AFTER the release matrix - which outruns
+          # this job every time. Do not race it: wait (bounded) until the
+          # child tip's in-tree file pins THIS version, then bump to it.
+          attempts=0
+          while [ "$attempts" -lt 40 ]; do
+            if git -C "${CHILD}" fetch origin Current 2>/dev/null && \
+               git -C "${CHILD}" show "origin/Current:SHA256SUMS.txt" 2>/dev/null | grep -q "^BINARY_VERSION: ${V}$"; then
+              break
+            fi
+            attempts=$((attempts + 1))
+            echo "child checksum commit for v${V} not yet visible (attempt ${attempts}/40); retrying in 15s"
+            sleep 15
           done
+          if ! git -C "${CHILD}" show "origin/Current:SHA256SUMS.txt" 2>/dev/null | grep -q "^BINARY_VERSION: ${V}$"; then
+            echo "::error::child in-tree SHA256SUMS.txt for v${V} never appeared - gitlink left as-is" >&2
+            exit 1
+          fi
           git -C "${CHILD}" checkout -q origin/Current
           echo "child now at: $(git -C "${CHILD}" rev-parse HEAD)"
 
