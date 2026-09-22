@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.0.5
+
+### Fix
+
+- Compatibility-check error hints now point at the real command:
+  `auth-hermes-cloudflare upgrade` (alias of `install`) instead of the
+  non-existent `install --upgrade` option.
+
+### Change
+
+- Bumped package version from 0.0.4 to 0.0.5 (crates `auth-cloudflare` and
+  `auth-hermes-cloudflare` incl. the path-dep pin, package.json, plugin.yaml,
+  BINARY_VERSION, README badges, version fixture).
+
 ## 0.0.4
 
 ### Change
