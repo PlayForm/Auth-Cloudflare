@@ -110,7 +110,20 @@ jobs:
       - name: Test
         run: cargo test --workspace
 
+      - name: Checkout Hermes agent source (for plugin pytest imports)
+        # The plugin imports Hermes' `providers` base classes at module load;
+        # helpers.py honors HERMES_AGENT_SRC so the tests run against the real
+        # Hermes internals, not stubs. Pin to a date tag (repo convention).
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: NousResearch/hermes-agent
+          ref: v2026.9.21
+          path: hermes-agent-src
+          fetch-depth: 1
+
       - name: Python plugin tests (pytest)
+        env:
+          HERMES_AGENT_SRC: ${{ github.workspace }}/hermes-agent-src
         run: |
           python3 -m pip install --quiet pytest
           python3 -m pytest plugins/auth-hermes-cloudflare/tests/ -q
