@@ -270,13 +270,12 @@ The repo ships three Hermes skills alongside the plugin:
 ## Configuration 🎛️
 
 Everything is driven by two environment variables - no recompile, no config
-file to keep in sync. The `AUTH_CLOUDFLARE_*` names are the canonical ones;
-the `CLOUDFLARE_*` names remain as the legacy Hermes-compatible aliases.
+file to keep in sync: `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`.
 
 | Variable                                               | Role                                                                    | Secret  |
 | :----------------------------------------------------- | :---------------------------------------------------------------------- | :------ |
-| `CLOUDFLARE_ACCOUNT_ID` / `AUTH_CLOUDFLARE_ACCOUNT_ID` | account ID (Workers & Pages → Overview)                                 | no      |
-| `CLOUDFLARE_API_TOKEN` / `AUTH_CLOUDFLARE_API_TOKEN`   | API token (Account → Workers AI → Write; some dashboards label it Edit) | **yes** |
+| `CLOUDFLARE_ACCOUNT_ID`                              | account ID (Workers & Pages → Overview)                                 | no      |
+| `CLOUDFLARE_API_TOKEN`                               | API token (Account → Workers AI → Write; some dashboards label it Edit) | **yes** |
 
 The token is only ever sent as a `Bearer` header - never logged, never echoed,
 never rendered by `Debug`/`Display` (the Rust core redacts it in both).

@@ -7,8 +7,8 @@
 #   AUTH_CLOUDFLARE_EXPORT_DIR=/tmp/out ./scripts/regenerate-catalog-docs.sh
 #
 # Requires: auth-cloudflare binary on PATH/AUTH_CLOUDFLARE_BIN, and either
-# the real account env (AUTH_CLOUDFLARE_ACCOUNT_ID + token, or the legacy
-# CLOUDFLARE_* aliases) with a populated cache, or AUTH_CLOUDFLARE_CACHE_DIR
+# the real account env (CLOUDFLARE_ACCOUNT_ID + token) with a populated
+# cache, or AUTH_CLOUDFLARE_CACHE_DIR
 # pointing at a seeded cache (offline/CI mode).
 #
 # Never echoes the token; the binary redacts everything it prints.

@@ -39,7 +39,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use auth_cloudflare::auth::{AuthProvider, ACCOUNT_ENV, TOKEN_ENV};
+use auth_cloudflare::auth::AuthProvider;
 use auth_cloudflare::cache::{
 	cache_dir_for_account, cache_is_stale, read_catalog_cache, write_catalog_cache, CatalogCacheMeta,
 };
@@ -94,12 +94,11 @@ const CACHE_MAX_AGE: Duration = Duration::from_secs(6 * 3600);
 const TOOL_LOOP_TIMEOUT: Duration = Duration::from_secs(90);
 
 /// Canonical env vars (config.rs contract).
-const ACCOUNT_ID_ENV: &str = "AUTH_CLOUDFLARE_ACCOUNT_ID";
-const API_TOKEN_ENV: &str = "AUTH_CLOUDFLARE_API_TOKEN";
+const ACCOUNT_ID_ENV: &str = "CLOUDFLARE_ACCOUNT_ID";
+const API_TOKEN_ENV: &str = "CLOUDFLARE_API_TOKEN";
 const BASE_URL_ENV: &str = "AUTH_CLOUDFLARE_WORKERS_AI_BASE_URL";
 const CACHE_DIR_ENV: &str = "AUTH_CLOUDFLARE_CACHE_DIR";
 const CONFIG_ENV: &str = "AUTH_CLOUDFLARE_CONFIG";
-const LEGACY_HERMES_TOKEN_ENV: &str = "HERMES_CUSTOM_API_CLOUDFLARE_COM_API_KEY";
 /// Expected Cloudflare account ID shape (config.rs contract).
 const ACCOUNT_ID_LEN: usize = 32;
 /// Default config file name under `$HERMES_HOME/auth-cloudflare/`.
@@ -137,8 +136,8 @@ Exit codes:
   6 conformance suite ran but failed acceptance criteria
   7 unsafe configuration / secret-leak risk detected
 
-Environment (core precedence):
-  AUTH_CLOUDFLARE_ACCOUNT_ID, AUTH_CLOUDFLARE_API_TOKEN,
+Environment:
+  CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN (required)
   AUTH_CLOUDFLARE_WORKERS_AI_BASE_URL, AUTH_CLOUDFLARE_CACHE_DIR,
   AUTH_CLOUDFLARE_CONFIG, AUTH_CLOUDFLARE_EXPORT_DIR (export target dir)
   AUTH_CLOUDFLARE_LIVE_TESTS=1 (opens the live gate for 'model verify';
@@ -146,8 +145,6 @@ Environment (core precedence):
   AUTH_CLOUDFLARE_MAX_COST_USD=<budget> (optional conformance budget;
   reported as cost_estimate_usd in the run report, documented but never
   enforced)
-  Legacy aliases: CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN,
-  HERMES_CUSTOM_API_CLOUDFLARE_COM_API_KEY
 ";
 
 /// One parsed CLI invocation.
@@ -500,9 +497,8 @@ struct ResolvedConfig {
 }
 
 /// Resolve configuration through the exact config.rs precedence chain
-/// (canonical `AUTH_CLOUDFLARE_*` → legacy `CLOUDFLARE_*` aliases → user
-/// config file). The account id is validated for shape; whitespace-only
-/// values count as missing.
+/// (canonical `CLOUDFLARE_*` env vars → user config file). The account id
+/// is validated for shape; whitespace-only values count as missing.
 fn resolve_config() -> ResolvedConfig {
 	let config_path = env_nonempty(CONFIG_ENV)
 		.map(PathBuf::from)
@@ -510,13 +506,10 @@ fn resolve_config() -> ResolvedConfig {
 	let file = read_config_file(&config_path);
 
 	let account_id = env_nonempty(ACCOUNT_ID_ENV)
-		.or_else(|| env_nonempty(ACCOUNT_ENV))
 		.or_else(|| file.account_id.clone())
 		.filter(|value| is_valid_account_id(value));
 
 	let token_configured = env_nonempty(API_TOKEN_ENV)
-		.or_else(|| env_nonempty(TOKEN_ENV))
-		.or_else(|| env_nonempty(LEGACY_HERMES_TOKEN_ENV))
 		.or_else(|| file.api_token_env.as_deref().and_then(env_nonempty))
 		.is_some();
 
@@ -1294,7 +1287,7 @@ fn model_health_json() -> (i32, serde_json::Value) {
 			EXIT_CREDENTIALS,
 			serde_json::json!({
 				"status": "error",
-				"error": "credentials missing: export AUTH_CLOUDFLARE_ACCOUNT_ID and AUTH_CLOUDFLARE_API_TOKEN (or the legacy CLOUDFLARE_* aliases)",
+				"error": "credentials missing: export CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN",
 				"exit_code": EXIT_CREDENTIALS,
 			}),
 		);
@@ -1527,17 +1520,14 @@ mod tests {
 
 	/// Every env var the CLI or core reads, saved/restored for isolation.
 	const ALL_VARS: &[&str] = &[
-		"AUTH_CLOUDFLARE_ACCOUNT_ID",
-		"AUTH_CLOUDFLARE_API_TOKEN",
+		"CLOUDFLARE_ACCOUNT_ID",
+		"CLOUDFLARE_API_TOKEN",
 		"AUTH_CLOUDFLARE_WORKERS_AI_BASE_URL",
 		"AUTH_CLOUDFLARE_CACHE_DIR",
 		"AUTH_CLOUDFLARE_CONFIG",
 		"AUTH_CLOUDFLARE_EXPORT_DIR",
 		"AUTH_CLOUDFLARE_LIVE_TESTS",
 		"AUTH_CLOUDFLARE_MAX_COST_USD",
-		"CLOUDFLARE_ACCOUNT_ID",
-		"CLOUDFLARE_API_TOKEN",
-		"HERMES_CUSTOM_API_CLOUDFLARE_COM_API_KEY",
 		"HERMES_HOME",
 		"HOME",
 	];
@@ -2113,10 +2103,7 @@ mod tests {
 			assert_eq!(value["status"], "error");
 			assert_eq!(value["exit_code"], EXIT_CREDENTIALS);
 			assert!(
-				value["error"]
-					.as_str()
-					.expect("error string")
-					.contains("AUTH_CLOUDFLARE_ACCOUNT_ID"),
+				value["error"].as_str().expect("error string").contains("CLOUDFLARE_ACCOUNT_ID"),
 				"missing-cred error names the exact env var"
 			);
 		});

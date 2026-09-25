@@ -5,12 +5,10 @@
 //!
 //! ```text
 //! 1. explicit constructor/config value (ConfigBuilder)
-//! 2. canonical AUTH_CLOUDFLARE_* environment variables
-//! 3. legacy Hermes-compatible aliases
-//!    (CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN,
-//!     HERMES_CUSTOM_API_CLOUDFLARE_COM_API_KEY)
-//! 4. user config file (JSON - non-secret values only)
-//! 5. typed missing-config error (CloudflareError::MissingEnv)
+//! 2. canonical CLOUDFLARE_ACCOUNT_ID / CLOUDFLARE_API_TOKEN env vars
+//! 3. user config file (JSON - non-secret values only; `api_token_env`
+//!    may name the env var holding the token)
+//! 4. typed missing-config error (CloudflareError::MissingEnv)
 //! ```
 //!
 //! The API token is held in [`SecretString`]: it never appears in `Debug`,
@@ -22,23 +20,20 @@ use std::path::PathBuf;
 
 use serde::Serialize;
 
-use crate::auth::{AuthProvider, ACCOUNT_ENV, TOKEN_ENV};
+use crate::auth::AuthProvider;
 use crate::cache::HERMES_HOME_ENV;
 use crate::error::CloudflareError;
 
 /// Canonical env var for the Cloudflare account ID (non-secret).
-pub const ACCOUNT_ID_ENV: &str = "AUTH_CLOUDFLARE_ACCOUNT_ID";
+pub const ACCOUNT_ID_ENV: &str = "CLOUDFLARE_ACCOUNT_ID";
 /// Canonical env var for the Cloudflare API token (secret).
-pub const API_TOKEN_ENV: &str = "AUTH_CLOUDFLARE_API_TOKEN";
+pub const API_TOKEN_ENV: &str = "CLOUDFLARE_API_TOKEN";
 /// Optional override for the Workers AI inference base URL.
 pub const BASE_URL_ENV: &str = "AUTH_CLOUDFLARE_WORKERS_AI_BASE_URL";
 /// Optional override for the account-scoped cache directory.
 pub const CACHE_DIR_ENV: &str = "AUTH_CLOUDFLARE_CACHE_DIR";
 /// Optional override for the user config file path.
 pub const CONFIG_ENV: &str = "AUTH_CLOUDFLARE_CONFIG";
-/// Legacy Hermes-compatible token alias.
-pub const LEGACY_HERMES_TOKEN_ENV: &str = "HERMES_CUSTOM_API_CLOUDFLARE_COM_API_KEY";
-
 /// Expected Cloudflare account ID shape: exactly this many ASCII hex digits.
 /// (Workers & Pages → Overview → Account ID.)
 pub const ACCOUNT_ID_LEN: usize = 32;
@@ -186,8 +181,8 @@ impl Config {
 /// the precedence chain.
 ///
 /// Any field set here is pinned above every environment variable and the
-/// config file; unset fields fall through the canonical env vars, the
-/// legacy aliases, and the user config file.
+/// config file; unset fields fall through the canonical env vars and the
+/// user config file.
 #[derive(Clone, Debug, Default)]
 pub struct ConfigBuilder {
 	account_id: Option<String>,
@@ -240,15 +235,14 @@ impl ConfigBuilder {
 			.unwrap_or_else(|| hermes_home().join("auth-cloudflare").join(CONFIG_FILE_NAME));
 		let file = FileConfig::load(&config_path)?;
 
-		// 1. Account ID: constructor > canonical env > legacy alias > file.
+		// 1. Account ID: constructor > canonical env > file.
 		let account_id = normalize(self.account_id)
 			.or_else(|| env_nonempty(ACCOUNT_ID_ENV))
-			.or_else(|| env_nonempty(ACCOUNT_ENV))
 			.or_else(|| normalize(file.account_id))
 			.ok_or_else(|| CloudflareError::MissingEnv {
 				env_var: ACCOUNT_ID_ENV,
 				hint: format!(
-					"export {ACCOUNT_ID_ENV}=<account id> (aliases: {ACCOUNT_ENV}) - found under Workers & Pages → Overview → Account ID"
+					"export {ACCOUNT_ID_ENV}=<account id> - found under Workers & Pages → Overview → Account ID"
 				),
 			})?;
 		if !is_valid_account_id(&account_id) {
@@ -261,13 +255,10 @@ impl ConfigBuilder {
 			});
 		}
 
-		// 2. API token: constructor > canonical env > legacy aliases > file
-		//    (which may only name the env var holding the token - never the
-		//    value itself).
+		// 2. API token: constructor > canonical env > file (which may only
+		//    name the env var holding the token - never the value itself).
 		let api_token = normalize(self.api_token)
 			.or_else(|| env_nonempty(API_TOKEN_ENV))
-			.or_else(|| env_nonempty(TOKEN_ENV))
-			.or_else(|| env_nonempty(LEGACY_HERMES_TOKEN_ENV))
 			.or_else(|| {
 				let name = file.api_token_env.as_deref().map(str::trim).filter(|n| !n.is_empty())?;
 				env_nonempty(name)
@@ -275,7 +266,7 @@ impl ConfigBuilder {
 			.ok_or_else(|| CloudflareError::MissingEnv {
 				env_var: API_TOKEN_ENV,
 				hint: format!(
-					"export {API_TOKEN_ENV}=<scoped api token> (aliases: {TOKEN_ENV}, {LEGACY_HERMES_TOKEN_ENV}) - create a token with Account → Workers AI → Write/Edit"
+					"export {API_TOKEN_ENV}=<scoped api token> - create a token with Account → Workers AI → Write/Edit"
 				),
 			})?;
 
@@ -383,9 +374,6 @@ mod tests {
 		BASE_URL_ENV,
 		CACHE_DIR_ENV,
 		CONFIG_ENV,
-		ACCOUNT_ENV,
-		TOKEN_ENV,
-		LEGACY_HERMES_TOKEN_ENV,
 		HERMES_HOME_ENV,
 		"HOME",
 	];
@@ -427,48 +415,6 @@ mod tests {
 		let path = dir.join(name);
 		std::fs::write(&path, contents).expect("write config file");
 		path
-	}
-
-	#[test]
-	fn canonical_env_wins_over_legacy_alias() {
-		with_env(
-			&[
-				(ACCOUNT_ID_ENV, Some(ACCOUNT)),
-				(ACCOUNT_ENV, Some(OTHER_ACCOUNT)),
-				(API_TOKEN_ENV, Some("cfut_test_canonical_token")),
-				(TOKEN_ENV, Some("cfut_test_legacy_token")),
-			],
-			|| {
-				let config = Config::from_env().expect("canonical vars present");
-				assert_eq!(config.account_id(), ACCOUNT);
-				assert_eq!(config.api_token().as_ref(), "cfut_test_canonical_token");
-				assert_eq!(
-					config.base_url().unwrap(),
-					format!("https://api.cloudflare.com/client/v4/accounts/{ACCOUNT}/ai/v1")
-				);
-			},
-		);
-	}
-
-	#[test]
-	fn legacy_alias_fallback() {
-		with_env(&[(ACCOUNT_ENV, Some(ACCOUNT)), (TOKEN_ENV, Some(TOKEN))], || {
-			let config = Config::from_env().expect("legacy vars present");
-			assert_eq!(config.account_id(), ACCOUNT);
-			assert_eq!(config.api_token().as_ref(), TOKEN);
-		});
-		// The Hermes custom-key alias resolves the token too.
-		with_env(
-			&[
-				(ACCOUNT_ENV, Some(ACCOUNT)),
-				(LEGACY_HERMES_TOKEN_ENV, Some("cfut_test_hermes_key")),
-			],
-			|| {
-				let config = Config::from_env().expect("hermes alias present");
-				assert_eq!(config.account_id(), ACCOUNT);
-				assert_eq!(config.api_token().as_ref(), "cfut_test_hermes_key");
-			},
-		);
 	}
 
 	#[test]

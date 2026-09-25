@@ -8,7 +8,7 @@
 #   AUTH_CLOUDFLARE_SNAPSHOT=path ./scripts/regenerate-fixtures.sh
 #
 # Requires (live mode only): auth-cloudflare binary on PATH or
-# AUTH_CLOUDFLARE_BIN, plus the real account env (AUTH_CLOUDFLARE_ACCOUNT_ID
+# AUTH_CLOUDFLARE_BIN, plus the real account env (CLOUDFLARE_ACCOUNT_ID
 # and the Cloudflare token; the binary redacts everything it prints).
 # Offline mode needs only a recorded snapshot JSON.
 #

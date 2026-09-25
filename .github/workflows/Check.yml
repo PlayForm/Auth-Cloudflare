@@ -240,13 +240,13 @@ jobs:
           mkdir -p "$OUT"
           AUTH_CLOUDFLARE_EXPORT_DIR="$OUT" \
           AUTH_CLOUDFLARE_CACHE_DIR="$CACHE_DIR" \
-          AUTH_CLOUDFLARE_ACCOUNT_ID="0123456789abcdef0123456789abcdef" \
-          AUTH_CLOUDFLARE_API_TOKEN="cfut_test_ci_fixture_regeneration" \
+          CLOUDFLARE_ACCOUNT_ID="0123456789abcdef0123456789abcdef" \
+          CLOUDFLARE_API_TOKEN="cfut_test_ci_fixture_regeneration" \
             target/debug/auth-cloudflare catalog export yaml
           AUTH_CLOUDFLARE_EXPORT_DIR="$OUT" \
           AUTH_CLOUDFLARE_CACHE_DIR="$CACHE_DIR" \
-          AUTH_CLOUDFLARE_ACCOUNT_ID="0123456789abcdef0123456789abcdef" \
-          AUTH_CLOUDFLARE_API_TOKEN="cfut_test_ci_fixture_regeneration" \
+          CLOUDFLARE_ACCOUNT_ID="0123456789abcdef0123456789abcdef" \
+          CLOUDFLARE_API_TOKEN="cfut_test_ci_fixture_regeneration" \
             target/debug/auth-cloudflare catalog export markdown
           test -s "$OUT/catalog.generated.yaml"
           test -s "$OUT/catalog.generated.md"

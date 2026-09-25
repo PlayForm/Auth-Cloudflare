@@ -86,7 +86,7 @@ curl -sS "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/a
 configured:false` + `exit_code: 2`, never a bare "exited with code 2".
 - Plain `hermes` (default profile) has no account env → binary doctor exits 2
   by contract; use the dev-cloudflare profile wrapper or export
-  AUTH_CLOUDFLARE_ACCOUNT_ID.
+  CLOUDFLARE_ACCOUNT_ID.
 - The `hermes model` picker list is 100% plugin-generated per opening
   (binary `catalog get` → policy-ordered); disabling the plugin removes the
   provider and every model row.
