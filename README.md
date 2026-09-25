@@ -9,8 +9,8 @@
 > and `hermes model` offers the account's Workers AI chat models.
 > _One provider. Two env vars. Zero hand-rolled YAML._
 
-[![release](https://img.shields.io/static/v1?label=release&message=v0.0.5&color=blue)](https://github.com/PlayForm/Auth-Cloudflare/releases)
-[![plugin](https://img.shields.io/static/v1?label=plugin&message=v0.0.5&color=purple)](https://github.com/PlayForm/Auth-Hermes-Cloudflare/blob/Current/plugin.yaml)
+[![release](https://img.shields.io/static/v1?label=release&message=v0.0.6&color=blue)](https://github.com/PlayForm/Auth-Cloudflare/releases)
+[![plugin](https://img.shields.io/static/v1?label=plugin&message=v0.0.6&color=purple)](https://github.com/PlayForm/Auth-Hermes-Cloudflare/blob/Current/plugin.yaml)
 [![hermes](https://img.shields.io/static/v1?label=hermes&message=%E2%89%A50.16.0&color=blue)](https://github.com/NousResearch/hermes-agent)
 [![rust](https://img.shields.io/static/v1?label=rust&message=1.88%2B&color=orange)](https://www.rust-lang.org)
 [![license](https://img.shields.io/static/v1?label=license&message=CC0-1.0&color=lightgrey)](LICENSE)

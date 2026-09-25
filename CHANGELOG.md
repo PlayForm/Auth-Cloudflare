@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.0.6
+
+### Feature
+
+- New `hermes cloudflare auth` command: registers the configured API token
+  into Hermes' auth store (the credential pool, same mechanism as
+  `hermes auth add`) under both provider keys, so delegated subagents -
+  which are spawned with a fresh environment - resolve the key from disk
+  instead of failing with 401. It prunes the junk account-id-as-key entry
+  the pool seeded, clears exhaustion, and persists `.env` when missing.
+- `api_token()` / `account_id()` now fall back to `~/.hermes/.env` and the
+  credential pool after the process env, matching stock Hermes'
+  `get_env_value_prefer_dotenv` + pool resolution.
+
+### Fix
+
+- The account id is no longer declared in the profile's `env_vars`: stock
+  `_api_key_env_fields()` treats every non-URL env var as an api-key
+  credential, so the account id was seeded into the credential pool and
+  tried as a key after the real token got rate-limited - the exact 401
+  `Authentication error` agents saw. It is read directly (`account_id()`)
+  for the derived base URL; the autocompletion is unchanged.
+
+### Change
+
+- Bumped package version from 0.0.5 to 0.0.6 (crates `auth-cloudflare` and
+  `auth-hermes-cloudflare` incl. the path-dep pin, package.json, plugin.yaml,
+  BINARY_VERSION, README badges, version fixture).
+- Test suite: hermetic credential-pool registration tests
+  (`tests/test_auth_registration.py`), env/url disk-fallback isolation.
+- CI-only parent-side fixes since 0.0.5 (no crate source changes): ureq
+  pinned back to 2.12 (3.x renamed the tls feature), plugin pytest jobs
+  provision `HERMES_AGENT_SRC`.
+
 ## 0.0.5
 
 ### Fix
