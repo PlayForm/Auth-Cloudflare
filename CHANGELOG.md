@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.0.7
+
+### Change
+
+- Credential env vars conflated to exactly two: `CLOUDFLARE_ACCOUNT_ID`
+  and `CLOUDFLARE_API_TOKEN`. The `AUTH_CLOUDFLARE_*` aliases and the
+  legacy `HERMES_CUSTOM_API_CLOUDFLARE_COM_API_KEY` key are removed from
+  the Rust core (config precedence, CLI usage, doctor output), the plugin
+  (constants, `plugin.yaml` env_vars, error messages), docs and CI
+  (fixtures job). `plugin.yaml` env_vars now mirrors the profile
+  contract; the account-id pool-seeding guard is unchanged.
+- Adopted the Aphrodite parent-side hook set (post-commit / post-merge /
+  post-checkout / pre-push auto-bump parent gitlinks; `.gitattributes`
+  pins LF for hook files) - the submodule's gitlink can no longer drift.
+- Bumped package version from 0.0.6 to 0.0.7 (crates `auth-cloudflare`
+  and `auth-hermes-cloudflare` incl. the path-dep pin, package.json,
+  plugin.yaml, BINARY_VERSION, README badges, version fixture).
+
 ## 0.0.6
 
 ### Feature

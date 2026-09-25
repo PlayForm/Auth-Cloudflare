@@ -1,6 +1,6 @@
 {
   "name": "@playform/auth-cloudflare",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "private": true,
   "description": "Auth Cloudflare Workers AI authentication provider plugin for Hermes Agent",
   "license": "CC0-1.0",
