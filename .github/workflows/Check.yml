@@ -252,8 +252,8 @@ jobs:
           test -s "$OUT/catalog.generated.md"
           grep -q "GENERATED FILE" "$OUT/catalog.generated.yaml"
           grep -q "Cloudflare Workers AI catalog" "$OUT/catalog.generated.md"
-          grep -q "deepseek-v4-flash-0731" "$OUT/catalog.generated.yaml"
-          echo "Fixture docs regeneration OK (3 fixture models, offline)."
+          grep -q "deepseek-v4.1-flash-1017" "$OUT/catalog.generated.yaml"
+          echo "Fixture docs regeneration OK (6 fixture models, offline)."
 
       - name: Secret scan (literal tokens only)
         # Fails only on LITERAL secret values. Synthetic redaction-test values
