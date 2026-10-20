@@ -70,6 +70,24 @@ manually:
    `SHA256SUMS.txt` header == the release tag version - a strict
    `download.sh` REFUSES on mismatch.
 
+### Re-running Finalize after the manual replication (and the gitlink job)
+
+When the gitlink tree ALREADY carries a previous version's `SHA256SUMS.txt`
+(every release after the first), Finalize's re-run fails differently: it
+regenerates the sums at the tag's gitlink (a local modification) and then
+`git checkout Current` refuses (`Your local changes to the following files
+would be overwritten by checkout: SHA256SUMS.txt`) because Current has moved
+ahead. Fix: REWIND the child to the gitlink TREE via an append-only revert
+(`git revert <sums-commit>` restores the old sums file - never force-push /
+reset), push the child, then re-run Finalize: its checkout no-ops (identical
+trees) and it re-commits the fresh sums with the (now valid) PAT.
+After that, the Publish `Bump-Plugin-Gitlink` job can still stay red
+permanently: it commits its gitlink bump on the TAG base and pushes Current,
+which has moved ahead of the tag (auto-committer, manual floats), so the
+push is always non-fast-forward. That failure is cosmetic - the job's
+objective (gitlink == child tip) is already met by the manual float; verify
+`git submodule status` shows no `+` and do not chase a green rerun.
+
 ## Version bumps
 
 - Rust API/behavior change → bump minor, keep the plugin shim in lockstep.
