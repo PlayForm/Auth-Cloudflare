@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.0.8
+
+### Feature
+
+- New default model: `@cf/deepseek-ai/deepseek-v4.1-flash-1017` (DeepSeek
+  V4.1 Flash) - a 552B-backbone multimodal MoE with 1,048,576-token context,
+  function calling, reasoning (`none`/`low`/`high`/`max`, default `high`),
+  and native image+text input, at Cloudflare's published rates ($0.30/M
+  input, $1.20/M output, $0.006/M cached input). It replaces
+  `deepseek-v4-flash-0731` as the development default everywhere: Rust
+  `DEFAULT_MODEL` / `FALLBACK_MODELS` ordering, the bundled policy, the
+  plugin's generated `plugin_defaults.json`, capability tables
+  (tool-capable, reasoning efforts, vision-confirmed, model family), model
+  fixtures, docs, and the dev profile. The previous default stays in the
+  catalog as an `available` model.
+- Live catalog refreshed from `/ai/models/search` (32 models); the curated
+  fallback list and the plugin fixtures were regenerated from the fresh
+  snapshot via `scripts/regenerate-fixtures.py`; `docs/catalog.generated.*`
+  re-exported.
+
+### Change
+
+- Bumped package version from 0.0.7 to 0.0.8 (crates `auth-cloudflare` and
+  `auth-hermes-cloudflare` incl. the path-dep pin, package.json, plugin.yaml,
+  BINARY_VERSION, README badges, version fixture).
+- `REASONING_EFFORTS_BY_MODEL` records the v4.1 default's documented
+  `none|low|high|max` enum; the plugin's `CLOUDFLARE_REASONING_EFFORTS`
+  wire constant stays on the `low|medium|high` subset valid on every plugin
+  model (`medium` maps to `high` on the v4.1 surface, so it never 400s).
+
 ## 0.0.7
 
 ### Change

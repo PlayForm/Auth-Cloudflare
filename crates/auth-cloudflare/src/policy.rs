@@ -75,7 +75,7 @@ impl Default for ModelPolicy {
 
 impl ModelPolicy {
 	/// Bundled default policy:
-	/// DeepSeek V4 Flash recommended/default, GLM-5.3 Flash experimental,
+	/// DeepSeek V4.1 Flash recommended/default, GLM-5.3 Flash experimental,
 	/// Llama Guard 3 8B hidden and never primary-agent eligible.
 	pub fn default_policy() -> Self {
 		Self {
@@ -205,8 +205,10 @@ pub const WEIGHT_LATENCY: f64 = 0.10;
 /// Weight of the price/value component.
 pub const WEIGHT_PRICE: f64 = 0.10;
 
-/// Context window (tokens) that normalizes to 1.0 - DeepSeek V4 Flash's
-/// advertised window. Anything at or beyond this caps at 1.0.
+/// Context window (tokens) that normalizes to 1.0 - the reference window
+/// used for the ranking context component (DeepSeek V4 Flash's advertised
+/// 1,310,720-token window; the v4.1 default's 1,048,576-token window scores
+/// 0.8 against it). Anything at or beyond this caps at 1.0.
 pub const REFERENCE_CONTEXT_TOKENS: u64 = 1_310_720;
 /// Median latency (ms) at or beyond which the latency score is 0.0 (60s).
 pub const REFERENCE_LATENCY_MS: f64 = 60_000.0;

@@ -1,6 +1,6 @@
 # GENERATED FILE - do not edit by hand.
 # Source: Cloudflare Workers AI catalog (cache)
-# Refreshed: 2026-09-22T17:59:48.353540+00:00
+# Refreshed: 2026-10-20T19:48:25.138152+00:00
 # Plugin policy: model-policy.yaml
 # Verification: model-health.json
 
@@ -35,7 +35,7 @@ models:
   - "@cf/moonshotai/kimi-k2.7-code"
   # experimental | Z.ai: Glm 5.3
   # Status: experimental
-  # Context: 1310720 tokens
+  # Context: 1048576 tokens
   # Price: $1.40/M input; unknown cached input; $4.40/M output
   # Tools: confirmed
   # Reasoning: confirmed (low, medium, high)
@@ -56,7 +56,7 @@ models:
   - "@cf/meta/llama-3.1-8b-instruct-fp8"
   # experimental | Z.ai: Glm 5.3 Flash
   # Status: experimental
-  # Context: 1310720 tokens
+  # Context: 1048576 tokens
   # Price: $0.15/M input; unknown cached input; $0.50/M output
   # Tools: confirmed
   # Reasoning: confirmed (low, medium, high)
@@ -75,6 +75,13 @@ models:
   # Tools: confirmed
   # Reasoning: confirmed (low, medium, high)
   - "@cf/moonshotai/kimi-k2.6"
+  # available | Cloudflare: Clef
+  # Status: available
+  # Context: 65536 tokens
+  # Price: $0.24/M input; unknown cached input; $0.00/M output
+  # Tools: unknown
+  # Reasoning: unknown
+  - "@cf/cloudflare/clef"
   # available | Z.ai: Glm 4.7 Flash
   # Status: available
   # Context: 131072 tokens
@@ -96,13 +103,27 @@ models:
   # Tools: confirmed
   # Reasoning: unknown
   - "@cf/ibm-granite/granite-4.0-h-micro"
-  # DEFAULT | DeepSeek: Deepseek V4 Flash 0731
-  # Status: recommended
-  # Context: 1310720 tokens
+  # available | DeepSeek: Deepseek V4 Flash 0731
+  # Status: available
+  # Context: 1048576 tokens
   # Price: $0.44/M input; unknown cached input; $1.32/M output
   # Tools: confirmed
   # Reasoning: confirmed (low, medium, high)
   - "@cf/deepseek-ai/deepseek-v4-flash-0731"
+  # available | Cloudflare: Clairic
+  # Status: available
+  # Context: 65536 tokens
+  # Price: $0.10/M input; unknown cached input; $0.00/M output
+  # Tools: unknown
+  # Reasoning: unknown
+  - "@cf/cloudflare/clairic"
+  # available | Cloudflare: Clef Omni
+  # Status: available
+  # Context: 65536 tokens
+  # Price: $0.15/M input; unknown cached input; $0.00/M output
+  # Tools: unknown
+  # Reasoning: unknown
+  - "@cf/cloudflare/clef-omni"
   # available | Qwen: Qwen2.5 Coder 32B Instruct
   # Status: available
   # Context: 32768 tokens
@@ -173,6 +194,13 @@ models:
   # Tools: confirmed
   # Reasoning: unknown
   - "@cf/qwen/qwen3.8-27b"
+  # DEFAULT | DeepSeek: Deepseek V4.1 Flash 1017
+  # Status: recommended
+  # Context: 1048576 tokens
+  # Price: $0.30/M input; unknown cached input; $1.20/M output
+  # Tools: confirmed
+  # Reasoning: confirmed (none, low, high, max)
+  - "@cf/deepseek-ai/deepseek-v4.1-flash-1017"
   # available | OpenAI: Gpt Oss 20B
   # Status: available
   # Context: 128000 tokens
@@ -187,6 +215,13 @@ models:
   # Tools: confirmed
   # Reasoning: unknown
   - "@cf/meta/llama-4-scout-17b-16e-instruct"
+  # available | Cloudflare: Clef Flash
+  # Status: available
+  # Context: 24576 tokens
+  # Price: $0.04/M input; unknown cached input; $0.00/M output
+  # Tools: unknown
+  # Reasoning: unknown
+  - "@cf/cloudflare/clef-flash"
   # available | Qwen: Qwq 32B
   # Status: available
   # Context: 24000 tokens

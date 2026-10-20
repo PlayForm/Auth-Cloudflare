@@ -1,0 +1,12 @@
+{
+  "id": "@cf/deepseek-ai/deepseek-v4.1-flash-1017",
+  "name": "DeepSeek V4.1 Flash (1017)",
+  "vendor_name": "DeepSeek",
+  "description": "DeepSeek V4.1 Flash - multimodal MoE (552B backbone) coding agent model hosted by Cloudflare Workers AI. 1M-token context, function calling, reasoning (none/low/high/max) and native image+text input. The project's development default.",
+  "context_length": 1048576,
+  "pricing": {
+    "prompt": "0.0000003",
+    "completion": "0.0000012",
+    "request": "0"
+  }
+}

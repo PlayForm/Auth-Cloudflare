@@ -34,11 +34,11 @@ PLUGIN_DEFAULTS = os.path.join(
     REPO_ROOT, "plugins", "auth-hermes-cloudflare", "fixtures", "plugin_defaults.json"
 )
 
-DEFAULT_MODEL = "@cf/deepseek-ai/deepseek-v4-flash-0731"
+DEFAULT_MODEL = "@cf/deepseek-ai/deepseek-v4.1-flash-1017"
 
 # The six bundled Rust model fixtures (fixture filename = id after "@cf/<org>/").
 SIX_MODEL_IDS = [
-    "@cf/deepseek-ai/deepseek-v4-flash-0731",
+    "@cf/deepseek-ai/deepseek-v4.1-flash-1017",
     "@cf/deepseek-ai/deepseek-v4-pro-0813",
     "@cf/zai-org/glm-5.3-flash",
     "@cf/openai/gpt-oss-120b",
@@ -48,7 +48,7 @@ SIX_MODEL_IDS = [
 
 # The four OpenRouter-shape records in the plugin fixture.
 OPENROUTER_FOUR_IDS = [
-    "@cf/deepseek-ai/deepseek-v4-flash-0731",
+    "@cf/deepseek-ai/deepseek-v4.1-flash-1017",
     "@cf/zai-org/glm-5.3-flash",
     "@cf/moonshotai/kimi-k2.7-code",
     "@cf/meta/llama-guard-3-8b",
@@ -57,12 +57,12 @@ OPENROUTER_FOUR_IDS = [
 # Curated policy opinions that must survive regeneration (mirrors
 # plugins/auth-hermes-cloudflare/__init__.py MODEL_POLICY).
 CURATED_RANKS = {
-    "@cf/deepseek-ai/deepseek-v4-flash-0731": 10,
+    "@cf/deepseek-ai/deepseek-v4.1-flash-1017": 10,
     "@cf/deepseek-ai/deepseek-v4-pro-0813": 20,
     "@cf/moonshotai/kimi-k2.7-code": 30,
 }
 CURATED_REASONS = {
-    "@cf/deepseek-ai/deepseek-v4-flash-0731": "Validated development default.",
+    "@cf/deepseek-ai/deepseek-v4.1-flash-1017": "Validated development default.",
     "@cf/deepseek-ai/deepseek-v4-pro-0813": "Premium reasoning.",
     "@cf/moonshotai/kimi-k2.7-code": "Premium coding.",
     "@cf/zai-org/glm-5.3-flash": "Observed delivery failures; requires passing conformance suite.",
@@ -71,7 +71,7 @@ CURATED_REASONS = {
 
 # The plugin's current primary-agent allow list (order is policy rank order).
 PRIMARY_AGENT_MODELS = [
-    "@cf/deepseek-ai/deepseek-v4-flash-0731",
+    "@cf/deepseek-ai/deepseek-v4.1-flash-1017",
     "@cf/deepseek-ai/deepseek-v4-pro-0813",
     "@cf/moonshotai/kimi-k2.7-code",
     "@cf/openai/gpt-oss-120b",

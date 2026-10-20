@@ -11,14 +11,14 @@
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 
-/// Curated fallback catalog - the account-verified 27 Cloudflare-hosted Workers AI chat
+/// Curated fallback catalog - the account-verified 31 Cloudflare-hosted Workers AI chat
 /// models, filtered to a practical coding/tool set (minus `llama-guard-3-8b`).
 ///
-/// ORDER IS POLICY: DeepSeek V4 Flash is the development default;
+/// ORDER IS POLICY: DeepSeek V4.1 Flash is the development default;
 /// GLM-5.3 Flash is experimental and intentionally NOT in the default
 /// position (delivery reliability not yet validated).
 pub const FALLBACK_MODELS: &[&str] = &[
-	"@cf/deepseek-ai/deepseek-v4-flash-0731",
+	"@cf/deepseek-ai/deepseek-v4.1-flash-1017",
 	"@cf/moonshotai/kimi-k2.7-code",
 	"@cf/deepseek-ai/deepseek-v4-pro-0813",
 	"@cf/openai/gpt-oss-120b",
@@ -27,9 +27,13 @@ pub const FALLBACK_MODELS: &[&str] = &[
 	"@cf/meta/llama-3.1-8b-instruct-fp8",
 	"@cf/meta/llama-3.2-1b-instruct",
 	"@cf/moonshotai/kimi-k2.6",
+	"@cf/cloudflare/clef",
 	"@cf/zai-org/glm-4.7-flash",
 	"@cf/meta/llama-3.3-70b-instruct-fp8-fast",
 	"@cf/ibm-granite/granite-4.0-h-micro",
+	"@cf/deepseek-ai/deepseek-v4-flash-0731",
+	"@cf/cloudflare/clairic",
+	"@cf/cloudflare/clef-omni",
 	"@cf/qwen/qwen2.5-coder-32b-instruct",
 	"@cf/zai-org/glm-5.2",
 	"@cf/nvidia/nemotron-3-120b-a12b",
@@ -41,6 +45,7 @@ pub const FALLBACK_MODELS: &[&str] = &[
 	"@cf/qwen/qwen3.8-27b",
 	"@cf/openai/gpt-oss-20b",
 	"@cf/meta/llama-4-scout-17b-16e-instruct",
+	"@cf/cloudflare/clef-flash",
 	"@cf/qwen/qwq-32b",
 	"@cf/zai-org/glm-5.3",
 	"@cf/zai-org/glm-5.3-flash",
@@ -225,6 +230,7 @@ pub struct ModelRecord {
 
 /// Publishers/models the Cloudflare docs confirm for function calling.
 const TOOL_CAPABLE_MARKERS: &[&str] = &[
+	"deepseek-v4.1-flash",
 	"deepseek-v4-flash",
 	"deepseek-v4-pro",
 	"kimi-k2.7-code",
@@ -275,10 +281,15 @@ const NON_CHAT_MARKERS: &[&str] = &[
 /// catalog API marks reasoning only via role markers (r1/qwq), so the
 /// documented reasoning families are confirmed here. Cloudflare's per-model
 /// docs pin the OpenAI-compatible ``reasoning_effort`` enum to
-/// low|medium|high (deepseek-v4-flash-0731 verified); the other families
+/// low|medium|high (deepseek-v4-flash-0731 verified); deepseek-v4.1-flash-1017
+/// documents the wider set none|low|high|max (default high) with aliases
+/// (auto→high, minimal→none, medium→high, xhigh→max). The other families
 /// share the same Workers AI chat-completions schema shape. The Python
-/// plugin's CLOUDFLARE_REASONING_EFFORTS constant mirrors this table.
+/// plugin's CLOUDFLARE_REASONING_EFFORTS constant mirrors this table but
+/// stays on the low|medium|high wire subset valid for every plugin model
+/// (medium maps to high on the v4.1 surface, so it never 400s).
 pub const REASONING_EFFORTS_BY_MODEL: &[(&str, &[&str])] = &[
+	("@cf/deepseek-ai/deepseek-v4.1-flash-1017", &["none", "low", "high", "max"]),
 	("@cf/deepseek-ai/deepseek-v4-flash-0731", &["low", "medium", "high"]),
 	("@cf/deepseek-ai/deepseek-v4-pro-0813", &["low", "medium", "high"]),
 	("@cf/deepseek-ai/deepseek-r1-distill-qwen-32b", &["low", "medium", "high"]),
@@ -293,6 +304,7 @@ pub const REASONING_EFFORTS_BY_MODEL: &[(&str, &[&str])] = &[
 /// plugin's PRIMARY_AGENT_MODELS / FALLBACK_MODELS sets). Unknown models yield
 /// no family (the sync record omits the field).
 pub const MODEL_FAMILIES_BY_ID: &[(&str, &str)] = &[
+	("@cf/deepseek-ai/deepseek-v4.1-flash-1017", "deepseek-flash"),
 	("@cf/deepseek-ai/deepseek-v4-flash-0731", "deepseek-flash"),
 	("@cf/deepseek-ai/deepseek-v4-pro-0813", "deepseek-flash"),
 	("@cf/deepseek-ai/deepseek-r1-distill-qwen-32b", "deepseek-r1"),
@@ -338,10 +350,15 @@ pub fn model_family_for(id: &str) -> Option<&'static str> {
 }
 
 /// Vision-capable Cloudflare models (llama-3.2-11b-vision accepts image
-/// input). The `models sync` records carry ``supports_vision`` so Hermes'
-/// per-model catalog knows which Cloudflare models take images; the plugin's
-/// default_vision_model() returns this id for auxiliary vision calls.
-pub const VISION_CONFIRMED: &[&str] = &["@cf/meta/llama-3.2-11b-vision-instruct"];
+/// input; deepseek-v4.1-flash-1017 is a multimodal MoE that natively
+/// processes images and text). The `models sync` records carry
+/// ``supports_vision`` so Hermes' per-model catalog knows which Cloudflare
+/// models take images; the plugin's default_vision_model() returns the
+/// dedicated vision id for auxiliary vision calls.
+pub const VISION_CONFIRMED: &[&str] = &[
+	"@cf/meta/llama-3.2-11b-vision-instruct",
+	"@cf/deepseek-ai/deepseek-v4.1-flash-1017",
+];
 
 /// True when *id* is a vision-capable Cloudflare model.
 pub fn vision_confirmed_for(id: &str) -> bool {
@@ -526,11 +543,11 @@ mod tests {
 
 	#[test]
 	fn normalizes_openrouter_entry() {
-		let entry = catalog_entry("@cf/deepseek-ai/deepseek-v4-flash-0731", 1_310_720, 1_788_800_000);
+		let entry = catalog_entry("@cf/deepseek-ai/deepseek-v4.1-flash-1017", 1_048_576, 1_788_800_000);
 		let record = ModelRecord::from_openrouter(&entry).expect("deepseek entry normalizes");
 		assert_eq!(record.publisher, "deepseek-ai");
 		assert_eq!(record.role, ModelRole::CodingAgent);
-		assert_eq!(record.limits.context_tokens, Some(1_310_720));
+		assert_eq!(record.limits.context_tokens, Some(1_048_576));
 		assert_eq!(record.capabilities.tools, CapabilityState::Confirmed);
 		assert!(record.eligible_for_primary_picker());
 		assert!(record.is_default());
@@ -573,7 +590,7 @@ mod tests {
 	fn picker_normalizes_payload() {
 		let payload = serde_json::json!({
 			"data": [
-				catalog_entry("@cf/deepseek-ai/deepseek-v4-flash-0731", 1_310_720, 1_788_800_000),
+				catalog_entry("@cf/deepseek-ai/deepseek-v4.1-flash-1017", 1_048_576, 1_788_800_000),
 				catalog_entry("@cf/meta/llama-guard-3-8b", 131_072, 1_788_800_000),
 				catalog_entry("@cf/baai/bge-m3-embedding", 8192, 1_788_800_000),
 				serde_json::json!({ "id": "@cf/third-party/gemini-3.8-flash" }),
@@ -582,7 +599,7 @@ mod tests {
 		let models = picker_models_from_openrouter(&payload);
 		assert_eq!(
 			models,
-			vec!["@cf/deepseek-ai/deepseek-v4-flash-0731", "@cf/third-party/gemini-3.8-flash"]
+			vec!["@cf/deepseek-ai/deepseek-v4.1-flash-1017", "@cf/third-party/gemini-3.8-flash"]
 		);
 	}
 
@@ -590,12 +607,12 @@ mod tests {
 	fn picker_falls_back_on_empty() {
 		let models = picker_models_from_openrouter(&serde_json::json!({ "data": [] }));
 		assert!(!models.is_empty());
-		assert_eq!(models[0], "@cf/deepseek-ai/deepseek-v4-flash-0731");
+		assert_eq!(models[0], "@cf/deepseek-ai/deepseek-v4.1-flash-1017");
 	}
 
 	#[test]
 	fn pricing_per_token_rounds_to_million() {
-		let entry = catalog_entry("@cf/deepseek-ai/deepseek-v4-flash-0731", 1_310_720, 1_788_800_000);
+		let entry = catalog_entry("@cf/deepseek-ai/deepseek-v4.1-flash-1017", 1_048_576, 1_788_800_000);
 		let record = ModelRecord::from_openrouter(&entry).expect("record");
 		let pricing = record.pricing;
 		assert_eq!(pricing.input, Some(0.15));
@@ -604,7 +621,7 @@ mod tests {
 
 	#[test]
 	fn fallback_first_model_is_default() {
-		assert_eq!(FALLBACK_MODELS[0], "@cf/deepseek-ai/deepseek-v4-flash-0731");
+		assert_eq!(FALLBACK_MODELS[0], "@cf/deepseek-ai/deepseek-v4.1-flash-1017");
 	}
 
 	#[test]
@@ -615,11 +632,11 @@ mod tests {
 
 	#[test]
 	fn documentation_url_derives_from_cf_id_segment() {
-		let entry = catalog_entry("@cf/deepseek-ai/deepseek-v4-flash-0731", 1_310_720, 1_788_800_000);
+		let entry = catalog_entry("@cf/deepseek-ai/deepseek-v4.1-flash-1017", 1_048_576, 1_788_800_000);
 		let record = ModelRecord::from_openrouter(&entry).expect("normalizes");
 		assert_eq!(
 			record.documentation_url.as_deref(),
-			Some("https://developers.cloudflare.com/workers-ai/models/deepseek-v4-flash-0731/")
+			Some("https://developers.cloudflare.com/workers-ai/models/deepseek-v4.1-flash-1017/")
 		);
 
 		// Routed (non-`@cf/`) ids carry no Workers AI docs URL.

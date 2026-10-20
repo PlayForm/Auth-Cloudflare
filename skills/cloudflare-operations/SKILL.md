@@ -94,7 +94,7 @@ configured:false` + `exit_code: 2`, never a bare "exited with code 2".
 ## Recommended routing
 
 ```text
-Default:            @cf/deepseek-ai/deepseek-v4-flash-0731
+Default:            @cf/deepseek-ai/deepseek-v4.1-flash-1017
 Code-heavy:         @cf/moonshotai/kimi-k2.7-code
 DeepSeek reasoning: @cf/deepseek-ai/deepseek-v4-pro-0813
 Experimental:       @cf/zai-org/glm-5.3-flash   (delivery conformance pending)

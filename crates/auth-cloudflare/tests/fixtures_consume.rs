@@ -4,14 +4,14 @@
 //!
 //! Zero network: every fixture is embedded with `include_str!` and parsed
 //! in memory. The six fixtures exercise the policy statuses the picker
-//! depends on: recommended (DeepSeek V4 Flash/Pro, Kimi K2.7 Code),
+//! depends on: recommended (DeepSeek V4.1 Flash/Pro, Kimi K2.7 Code),
 //! available (GPT-OSS 120B), experimental (GLM-5.3 Flash), hidden (Llama
 //! Guard 3 8B).
 
 use auth_cloudflare::catalog::{CapabilityState, ModelRecord, ModelRole, Visibility};
 use auth_cloudflare::policy::{ModelPolicy, ModelStatus};
 
-const DEEPSEEK: &str = include_str!("../fixtures/models/deepseek-v4-flash-0731.json");
+const DEEPSEEK: &str = include_str!("../fixtures/models/deepseek-v4.1-flash-1017.json");
 const GLM: &str = include_str!("../fixtures/models/glm-5.3-flash.json");
 const LLAMA_GUARD: &str = include_str!("../fixtures/models/llama-guard-3-8b.json");
 const DEEPSEEK_PRO: &str = include_str!("../fixtures/models/deepseek-v4-pro-0813.json");
@@ -26,21 +26,21 @@ fn normalize(fixture: &str) -> ModelRecord {
 #[test]
 fn deepseek_fixture_normalizes_to_recommended_default() {
 	let record = normalize(DEEPSEEK);
-	assert_eq!(record.id, "@cf/deepseek-ai/deepseek-v4-flash-0731");
-	assert_eq!(record.display_name, "DeepSeek V4 Flash (070731)");
+	assert_eq!(record.id, "@cf/deepseek-ai/deepseek-v4.1-flash-1017");
+	assert_eq!(record.display_name, "DeepSeek V4.1 Flash (1017)");
 	assert_eq!(record.publisher, "deepseek-ai");
 	assert_eq!(record.role, ModelRole::CodingAgent);
 	assert_eq!(record.visibility, Visibility::Recommended);
 	assert_eq!(record.capabilities.tools, CapabilityState::Confirmed);
-	assert_eq!(record.limits.context_tokens, Some(1_310_720));
+	assert_eq!(record.limits.context_tokens, Some(1_048_576));
 	assert!(record.eligible_for_primary_picker());
 	assert!(record.is_default());
 
 	// Pricing normalizes per-million from the OpenRouter per-token strings.
 	let input = record.pricing.input.expect("input price present");
 	let output = record.pricing.output.expect("output price present");
-	assert!((input - 0.44).abs() < 1e-9, "input price {input} != 0.44");
-	assert!((output - 1.32).abs() < 1e-9, "output price {output} != 1.32");
+	assert!((input - 0.30).abs() < 1e-9, "input price {input} != 0.30");
+	assert!((output - 1.20).abs() < 1e-9, "output price {output} != 1.20");
 
 	let policy = ModelPolicy::default_policy();
 	assert_eq!(policy.status_for(&record.id), ModelStatus::Recommended);
@@ -150,7 +150,7 @@ fn gpt_oss_fixture_normalizes_to_available() {
 #[test]
 fn the_three_fixtures_exercise_the_three_policy_statuses() {
 	let policy = ModelPolicy::default_policy();
-	let deepseek = policy.status_for("@cf/deepseek-ai/deepseek-v4-flash-0731");
+	let deepseek = policy.status_for("@cf/deepseek-ai/deepseek-v4.1-flash-1017");
 	let glm = policy.status_for("@cf/zai-org/glm-5.3-flash");
 	let guard = policy.status_for("@cf/meta/llama-guard-3-8b");
 	assert_eq!(deepseek, ModelStatus::Recommended);

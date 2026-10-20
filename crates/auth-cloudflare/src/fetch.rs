@@ -369,9 +369,9 @@ mod tests {
 
 	#[test]
 	fn ok_payload_with_data_array_is_returned() {
-		let body = r#"{"data":[{"id":"@cf/deepseek-ai/deepseek-v4-flash-0731"}]}"#;
+		let body = r#"{"data":[{"id":"@cf/deepseek-ai/deepseek-v4.1-flash-1017"}]}"#;
 		let value = map_response(200, None, body).expect("valid payload parses");
-		assert_eq!(value["data"][0]["id"], "@cf/deepseek-ai/deepseek-v4-flash-0731");
+		assert_eq!(value["data"][0]["id"], "@cf/deepseek-ai/deepseek-v4.1-flash-1017");
 	}
 
 	#[test]

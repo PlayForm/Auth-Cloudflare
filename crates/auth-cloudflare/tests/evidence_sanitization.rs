@@ -7,7 +7,7 @@
 
 use auth_cloudflare::health::{FailureClass, FailureEvidence, MAX_EXCERPT_CHARS};
 
-const MODEL: &str = "@cf/deepseek-ai/deepseek-v4-flash-0731";
+const MODEL: &str = "@cf/deepseek-ai/deepseek-v4.1-flash-1017";
 
 #[test]
 fn long_excerpt_is_capped_at_512_chars() {

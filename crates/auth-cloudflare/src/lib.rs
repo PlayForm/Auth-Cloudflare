@@ -56,13 +56,14 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Default inference model - the project's development default.
 ///
-/// DeepSeek V4 Flash is the default because it has demonstrated reliable
-/// delivery in the local Hermes tool-use workflow. GLM-5.3 Flash remains
+/// DeepSeek V4.1 Flash is the default because it has demonstrated reliable
+/// delivery in the local Hermes tool-use workflow (multimodal MoE, 1M
+/// context, function calling, reasoning, vision). GLM-5.3 Flash remains
 /// available but is experimental pending conformance tests.
 ///
 /// Single source of truth: adapters MUST read this (or the policy JSON
 /// contract), never duplicate it.
-pub const DEFAULT_MODEL: &str = "@cf/deepseek-ai/deepseek-v4-flash-0731";
+pub const DEFAULT_MODEL: &str = "@cf/deepseek-ai/deepseek-v4.1-flash-1017";
 
 /// Premium coding model (higher capability tier).
 pub const PREMIUM_CODING_MODEL: &str = "@cf/moonshotai/kimi-k2.7-code";

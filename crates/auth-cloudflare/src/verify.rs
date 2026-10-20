@@ -1421,7 +1421,7 @@ mod tests {
 	/// Synthetic token - never a real credential.
 	const TOKEN: &str = "cfut_test_synthetic_token_0001";
 	/// First synthetic model id.
-	const MODEL_A: &str = "@cf/deepseek-ai/deepseek-v4-flash-0731";
+	const MODEL_A: &str = "@cf/deepseek-ai/deepseek-v4.1-flash-1017";
 	/// Second synthetic model id.
 	const MODEL_B: &str = "@cf/zai-org/glm-5.3-flash";
 

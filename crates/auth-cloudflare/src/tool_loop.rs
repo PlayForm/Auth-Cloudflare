@@ -935,7 +935,7 @@ mod tests {
 				"0123456789abcdef0123456789abcdef",
 				&token,
 				"https://example.test/ai/v1",
-				"@cf/deepseek-ai/deepseek-v4-flash-0731",
+				"@cf/deepseek-ai/deepseek-v4.1-flash-1017",
 				Duration::from_secs(1),
 			)
 			.expect_err("gate must refuse without AUTH_CLOUDFLARE_LIVE_TESTS=1");

@@ -81,7 +81,7 @@ fn live_tests_enabled_is_false_when_unset_or_not_exactly_one() {
 fn run_smoke_suite_refuses_without_gate_and_without_network() {
 	with_live_tests_env(None, || {
 		let config = gate_off_config();
-		let error = run_smoke_suite(&config, "@cf/deepseek-ai/deepseek-v4-flash-0731")
+		let error = run_smoke_suite(&config, "@cf/deepseek-ai/deepseek-v4.1-flash-1017")
 			.expect_err("the closed gate must refuse before any HTTP");
 		match error {
 			CloudflareError::MissingEnv { env_var, hint } => {
@@ -101,7 +101,7 @@ fn run_tool_loop_refuses_without_gate_and_without_network() {
 			ACCOUNT,
 			&token,
 			"https://example.test/ai/v1",
-			"@cf/deepseek-ai/deepseek-v4-flash-0731",
+			"@cf/deepseek-ai/deepseek-v4.1-flash-1017",
 			Duration::from_secs(1),
 		)
 		.expect_err("the closed gate must refuse before any HTTP");

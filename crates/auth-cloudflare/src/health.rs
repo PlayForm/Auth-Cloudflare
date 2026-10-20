@@ -345,7 +345,7 @@ mod tests {
 		tool_calls: u64,
 	) -> ModelHealthRecord {
 		ModelHealthRecord {
-			model_id: "@cf/deepseek-ai/deepseek-v4-flash-0731".to_string(),
+			model_id: "@cf/deepseek-ai/deepseek-v4.1-flash-1017".to_string(),
 			window_started_at: timestamp(),
 			request_count: requests,
 			successful_responses: successful,
@@ -369,7 +369,7 @@ mod tests {
 		multi: Option<f64>,
 	) -> ModelVerification {
 		ModelVerification {
-			model_id: "@cf/deepseek-ai/deepseek-v4-flash-0731".to_string(),
+			model_id: "@cf/deepseek-ai/deepseek-v4.1-flash-1017".to_string(),
 			latest_run_at: Some(timestamp()),
 			expires_at: None,
 			suite_version: CONFORMANCE_SUITE_VERSION.to_string(),
@@ -490,7 +490,7 @@ mod tests {
 			Some(401),
 			None,
 			Some(100),
-			"@cf/deepseek-ai/deepseek-v4-flash-0731",
+			"@cf/deepseek-ai/deepseek-v4.1-flash-1017",
 			None,
 			Some("unauthorized".to_string()),
 		);
@@ -509,7 +509,7 @@ mod tests {
 			"http_status": null,
 			"cloudflare_ray_id": null,
 			"elapsed_ms": null,
-			"model_id": "@cf/deepseek-ai/deepseek-v4-flash-0731",
+			"model_id": "@cf/deepseek-ai/deepseek-v4.1-flash-1017",
 			"request_id": null,
 			"response_excerpt": null,
 			"token": "leaked",
@@ -581,7 +581,7 @@ mod tests {
 			Some(429),
 			Some("ray-abc".to_string()),
 			Some(1_200),
-			"@cf/deepseek-ai/deepseek-v4-flash-0731",
+			"@cf/deepseek-ai/deepseek-v4.1-flash-1017",
 			Some("req-7".to_string()),
 			Some("rate limited".to_string()),
 		));

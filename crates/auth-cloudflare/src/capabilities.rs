@@ -63,9 +63,12 @@ mod tests {
 
 	#[test]
 	fn deepseek_is_tool_capable() {
-		let caps = infer_from_id("@cf/deepseek-ai/deepseek-v4-flash-0731");
+		let caps = infer_from_id("@cf/deepseek-ai/deepseek-v4.1-flash-1017");
 		assert_eq!(caps.tools, CapabilityState::Confirmed);
 		assert_eq!(caps.chat, CapabilityState::Confirmed);
+		// The legacy v4 flash id matches the same family marker.
+		let legacy = infer_from_id("@cf/deepseek-ai/deepseek-v4-flash-0731");
+		assert_eq!(legacy.tools, CapabilityState::Confirmed);
 	}
 
 	#[test]

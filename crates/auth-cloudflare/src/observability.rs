@@ -46,7 +46,7 @@ pub struct Event {
 	pub timestamp: String,
 	/// Event kind, e.g. `chat_completion`, `catalog_fetch`.
 	pub event: String,
-	/// Model identifier, e.g. `@cf/deepseek-ai/deepseek-v4-flash-0731`.
+	/// Model identifier, e.g. `@cf/deepseek-ai/deepseek-v4.1-flash-1017`.
 	pub model_id: String,
 	/// Request surface, e.g. `chat_completions`.
 	pub request_kind: String,

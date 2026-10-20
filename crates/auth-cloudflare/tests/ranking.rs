@@ -8,7 +8,7 @@ use auth_cloudflare::health::{CONFORMANCE_SUITE_VERSION, ModelVerification, Veri
 use auth_cloudflare::policy::{ranking_score, ModelPolicy, ModelStatus, RankingBreakdown};
 use auth_cloudflare::catalog::ModelRecord;
 
-const DEEPSEEK: &str = include_str!("../fixtures/models/deepseek-v4-flash-0731.json");
+const DEEPSEEK: &str = include_str!("../fixtures/models/deepseek-v4.1-flash-1017.json");
 const GLM: &str = include_str!("../fixtures/models/glm-5.3-flash.json");
 const LLAMA_GUARD: &str = include_str!("../fixtures/models/llama-guard-3-8b.json");
 
@@ -61,7 +61,7 @@ fn unverified_models_never_rank() {
 	assert_eq!(ranking_score(&deepseek, None), None);
 	let breakdown = RankingBreakdown::breakdown_for(&deepseek, None);
 	assert_eq!(breakdown.score, None);
-	assert_eq!(breakdown.model_id, "@cf/deepseek-ai/deepseek-v4-flash-0731");
+	assert_eq!(breakdown.model_id, "@cf/deepseek-ai/deepseek-v4.1-flash-1017");
 }
 
 #[test]

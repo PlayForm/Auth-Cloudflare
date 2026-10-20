@@ -16,7 +16,7 @@ use auth_cloudflare::verify::{
 	load_health_store, save_health_store, save_verification, HealthStore, HEALTH_STORE_FILE, HEALTH_STORE_VERSION,
 };
 
-const MODEL_A: &str = "@cf/deepseek-ai/deepseek-v4-flash-0731";
+const MODEL_A: &str = "@cf/deepseek-ai/deepseek-v4.1-flash-1017";
 const MODEL_B: &str = "@cf/zai-org/glm-5.3-flash";
 
 /// Unique scratch dir per test - tests run in parallel.

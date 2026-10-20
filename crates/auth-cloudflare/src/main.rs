@@ -262,7 +262,7 @@ fn parse_args(args: &[String]) -> Result<(Command, Option<String>), String> {
 			[sub, model_id] if sub == "inspect" => Command::ModelInspect { model_id: model_id.clone() },
 			[sub] if sub == "inspect" => {
 				return Err(
-					"model inspect requires a model id, e.g. model inspect @cf/deepseek-ai/deepseek-v4-flash-0731"
+					"model inspect requires a model id, e.g. model inspect @cf/deepseek-ai/deepseek-v4.1-flash-1017"
 						.to_string(),
 				);
 			},
@@ -278,7 +278,7 @@ fn parse_args(args: &[String]) -> Result<(Command, Option<String>), String> {
 			},
 			[sub] if sub == "verify" => {
 				return Err(
-						"model verify requires a model id (or --recommended), e.g. model verify @cf/deepseek-ai/deepseek-v4-flash-0731 [--suite smoke]"
+						"model verify requires a model id (or --recommended), e.g. model verify @cf/deepseek-ai/deepseek-v4.1-flash-1017 [--suite smoke]"
 							.to_string(),
 					);
 			},
@@ -711,7 +711,7 @@ fn fallback_records() -> Vec<ModelRecord> {
 	records_from_payload(&serde_json::json!({ "data": data }))
 }
 
-/// Derive a display name from an id (`@cf/deepseek-ai/deepseek-v4-flash-0731`
+/// Derive a display name from an id (`@cf/deepseek-ai/deepseek-v4.1-flash-1017`
 /// → `DeepSeek V4 Flash 0731`). Pure display heuristics - never policy.
 fn display_name_from_id(id: &str) -> String {
 	let rest = id.strip_prefix("@cf/").unwrap_or(id);
@@ -1723,8 +1723,14 @@ mod tests {
 			),
 			(&["catalog", "diff", "--format", "json"], Command::CatalogDiff),
 			(
-				&["model", "inspect", "@cf/deepseek-ai/deepseek-v4-flash-0731", "--format", "json"],
-				Command::ModelInspect { model_id: "@cf/deepseek-ai/deepseek-v4-flash-0731".to_string() },
+				&[
+					"model",
+					"inspect",
+					"@cf/deepseek-ai/deepseek-v4.1-flash-1017",
+					"--format",
+					"json",
+				],
+				Command::ModelInspect { model_id: "@cf/deepseek-ai/deepseek-v4.1-flash-1017".to_string() },
 			),
 			(&["policy", "get", "--format", "json"], Command::PolicyGet),
 			(&["models", "sync"], Command::ModelsSync),
@@ -1993,7 +1999,7 @@ mod tests {
 				seed_cache(
 					&chrono::Utc::now().to_rfc3339(),
 					&[
-						"@cf/deepseek-ai/deepseek-v4-flash-0731",
+						"@cf/deepseek-ai/deepseek-v4.1-flash-1017",
 						"@cf/meta/llama-guard-3-8b",
 						"@cf/qwen/qwen3.8-27b",
 						"@cf/meta/llama-3.2-11b-vision-instruct",
@@ -2017,11 +2023,11 @@ mod tests {
 				assert_eq!(value["model_count"].as_u64(), Some(models.len() as u64));
 				let flash = models
 					.iter()
-					.find(|m| m["id"] == "@cf/deepseek-ai/deepseek-v4-flash-0731")
+					.find(|m| m["id"] == "@cf/deepseek-ai/deepseek-v4.1-flash-1017")
 					.expect("flash present");
 				assert_eq!(flash["tool_call"], true);
 				assert_eq!(flash["reasoning"], true);
-				assert_eq!(flash["reasoning_efforts"], serde_json::json!(["low", "medium", "high"]));
+				assert_eq!(flash["reasoning_efforts"], serde_json::json!(["none", "low", "high", "max"]));
 				assert_eq!(flash["model_family"], "deepseek-flash");
 				// context_length was not in the seeded catalog entry - omitted, not null.
 				assert!(flash.get("context_window").is_none());
@@ -2351,7 +2357,7 @@ mod tests {
 				assert!(md.contains("Cloudflare Workers AI catalog"));
 				assert!(md.contains("| Model | Status |"));
 				// Markdown rows show display names; ids appear in YAML.
-				assert!(md.contains("DeepSeek V4 Flash 0731"));
+				assert!(md.contains("DeepSeek V4.1 Flash 1017"));
 			},
 		);
 		let _ = std::fs::remove_dir_all(&home);
@@ -2690,8 +2696,8 @@ mod tests {
 	#[test]
 	fn display_name_from_id_heuristics() {
 		assert_eq!(
-			display_name_from_id("@cf/deepseek-ai/deepseek-v4-flash-0731"),
-			"DeepSeek V4 Flash 0731"
+			display_name_from_id("@cf/deepseek-ai/deepseek-v4.1-flash-1017"),
+			"DeepSeek V4.1 Flash 1017"
 		);
 		assert_eq!(display_name_from_id("@cf/zai-org/glm-5.3-flash"), "GLM 5.3 Flash");
 		assert_eq!(display_name_from_id("plain-id"), "Plain Id");

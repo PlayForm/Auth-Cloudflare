@@ -191,7 +191,7 @@ mod tests {
 		};
 		let payload = serde_json::json!({
 			"schema_version": 1,
-			"models": [{"id": "@cf/deepseek-ai/deepseek-v4-flash-0731"}]
+			"models": [{"id": "@cf/deepseek-ai/deepseek-v4.1-flash-1017"}]
 		});
 		write_catalog_cache(&dir, &meta, &payload).expect("write");
 		let (read_meta, read_payload) = read_catalog_cache(&dir).expect("read").expect("cache present");
