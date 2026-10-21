@@ -1,0 +1,13 @@
+{
+  "id": "@cf/deepseek-ai/deepseek-v4-flash-0731",
+  "name": "DeepSeek V4 Flash (0731)",
+  "vendor_name": "DeepSeek",
+  "description": "DeepSeek V4 Flash - fast, tool-capable coding agent model hosted by Cloudflare Workers AI. Retained alternative to the V4.1 Flash development default.",
+  "context_length": 1048576,
+  "created": 1788800000,
+  "pricing": {
+    "prompt": "0.00000044",
+    "completion": "0.00000132",
+    "request": "0"
+  }
+}

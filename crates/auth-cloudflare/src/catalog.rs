@@ -355,10 +355,7 @@ pub fn model_family_for(id: &str) -> Option<&'static str> {
 /// ``supports_vision`` so Hermes' per-model catalog knows which Cloudflare
 /// models take images; the plugin's default_vision_model() returns the
 /// dedicated vision id for auxiliary vision calls.
-pub const VISION_CONFIRMED: &[&str] = &[
-	"@cf/meta/llama-3.2-11b-vision-instruct",
-	"@cf/deepseek-ai/deepseek-v4.1-flash-1017",
-];
+pub const VISION_CONFIRMED: &[&str] = &["@cf/meta/llama-3.2-11b-vision-instruct", "@cf/deepseek-ai/deepseek-v4.1-flash-1017"];
 
 /// True when *id* is a vision-capable Cloudflare model.
 pub fn vision_confirmed_for(id: &str) -> bool {

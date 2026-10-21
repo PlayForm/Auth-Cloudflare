@@ -36,9 +36,12 @@ PLUGIN_DEFAULTS = os.path.join(
 
 DEFAULT_MODEL = "@cf/deepseek-ai/deepseek-v4.1-flash-1017"
 
-# The six bundled Rust model fixtures (fixture filename = id after "@cf/<org>/").
+# The bundled Rust model fixtures (fixture filename = id after "@cf/<org>/").
+# BOTH DeepSeek Flash generations stay bundled: v4.1 Flash (-1017) is the
+# development default, v4 Flash (-0731) is the retained alternative.
 SIX_MODEL_IDS = [
     "@cf/deepseek-ai/deepseek-v4.1-flash-1017",
+    "@cf/deepseek-ai/deepseek-v4-flash-0731",
     "@cf/deepseek-ai/deepseek-v4-pro-0813",
     "@cf/zai-org/glm-5.3-flash",
     "@cf/openai/gpt-oss-120b",
@@ -70,8 +73,11 @@ CURATED_REASONS = {
 }
 
 # The plugin's current primary-agent allow list (order is policy rank order).
+# Both DeepSeek Flash generations are offered; v4.1 Flash (-1017) is the
+# default, v4 Flash (-0731) the retained cheaper-context alternative.
 PRIMARY_AGENT_MODELS = [
     "@cf/deepseek-ai/deepseek-v4.1-flash-1017",
+    "@cf/deepseek-ai/deepseek-v4-flash-0731",
     "@cf/deepseek-ai/deepseek-v4-pro-0813",
     "@cf/moonshotai/kimi-k2.7-code",
     "@cf/openai/gpt-oss-120b",
