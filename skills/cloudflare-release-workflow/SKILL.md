@@ -96,6 +96,45 @@ objective (gitlink == child tip) is already met by the manual float; verify
 - The executable's JSON CLI protocol is not stable across versions - `download.sh` always fetches the
   exact `BINARY_VERSION`, never "latest" for an existing install.
 
+### Every version bump touches these files
+
+`crates/auth-cloudflare/Cargo.toml`, `crates/auth-hermes-cloudflare/Cargo.toml`
+(both the package version AND the `auth-cloudflare` path-dep pin),
+`package.json`, `README.md` badges (release + plugin),
+`plugins/auth-hermes-cloudflare/{plugin.yaml,BINARY_VERSION,README.md}`,
+`plugins/auth-hermes-cloudflare/fixtures/auth_cloudflare_version.json`, and
+`docs/catalog.generated.*` (re-export, which stamps `Plugin: <version>`).
+
+### Local verification order (the plugin tests gate on the binary version)
+
+`plugins/auth-hermes-cloudflare/tests/test_real_binary.py` compares the
+INSTALLED binary against `BINARY_VERSION`, so after bumping it four tests fail
+with `package_version 0.0.x is older than the required 0.0.y` until the new
+binary is installed:
+
+```sh
+cargo install --path crates/auth-cloudflare --force
+target/release/auth-hermes-cloudflare link --source <cargo bin>/auth-cloudflare
+```
+
+Run `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D
+warnings`, `cargo test --workspace`, then the plugin pytest suite with
+`HERMES_AGENT_SRC` and the hermes venv's site-packages on `PYTHONPATH`.
+
+### Regenerate docs from the LIVE cache, not from the fixtures
+
+`Check.yml`'s docs job seeds a scratch cache from
+`crates/auth-cloudflare/fixtures/models/*.json` (7-8 records) and only asserts
+the export works - it never compares against the committed docs. Regenerating
+`docs/catalog.generated.*` the same way SHRINKS the committed docs to the
+fixture subset. Export against the refreshed live cache instead:
+
+```sh
+auth-cloudflare catalog refresh                       # needs CLOUDFLARE_API_TOKEN
+AUTH_CLOUDFLARE_EXPORT_DIR="$PWD/docs" auth-cloudflare catalog export yaml
+AUTH_CLOUDFLARE_EXPORT_DIR="$PWD/docs" auth-cloudflare catalog export markdown
+```
+
 ## ureq must stay 2.x
 
 `ureq` 3.x renamed the `tls` feature (and reshaped `Error::Status`), so a
