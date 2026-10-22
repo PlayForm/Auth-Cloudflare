@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.0.9
+
+### Feature
+
+- Live catalog refreshed from `/ai/models/search` (32 models); the plugin
+  defaults and model fixtures were regenerated from the fresh snapshot via
+  `scripts/regenerate-fixtures.py`.
+- DeepSeek V4 Flash (`@cf/deepseek-ai/deepseek-v4-flash-0731`) is bundled and
+  selectable again next to DeepSeek V4.1 Flash
+  (`@cf/deepseek-ai/deepseek-v4.1-flash-1017`), which stays the development
+  default. Both generations are in `PRIMARY_AGENT_MODELS`, the bundled Rust
+  model fixtures, and the plugin's generated defaults; V4 Flash is an
+  `available` model, never the default.
+- Restored `crates/auth-cloudflare/fixtures/models/deepseek-v4-flash-0731.json`
+  with the live rates ($0.44/M input, $1.32/M output, 1,048,576-token
+  context).
+
+### Change
+
+- Bumped package version from 0.0.8 to 0.0.9 (crates `auth-cloudflare` and
+  `auth-hermes-cloudflare` incl. the path-dep pin, package.json, plugin.yaml,
+  BINARY_VERSION, README badges, version fixture).
+
 ## 0.0.8
 
 ### Feature
