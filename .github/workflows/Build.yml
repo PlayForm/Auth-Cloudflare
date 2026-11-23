@@ -53,9 +53,14 @@ jobs:
             target: x86_64-unknown-linux-gnu
           - os: ubuntu-latest
             target: aarch64-unknown-linux-gnu
-          - os: macos-14
+          # macos-14 is retired for this account: GitHub cancels the job with
+          # "The configuration 'macos-14-arm64-us-default' is not supported"
+          # before a single step runs (measured on Cloudflare/v0.0.10, which
+          # shipped its apple tarballs from a local build). macos-15 is the
+          # supported arm64 image.
+          - os: macos-15
             target: aarch64-apple-darwin
-          - os: macos-14 # x86_64 cross-compiled from the arm64 runner
+          - os: macos-15 # x86_64 cross-compiled from the arm64 runner
             target: x86_64-apple-darwin
 
     steps:
