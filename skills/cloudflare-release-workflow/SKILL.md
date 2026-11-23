@@ -141,8 +141,9 @@ AUTH_CLOUDFLARE_EXPORT_DIR="$PWD/docs" auth-cloudflare catalog export markdown
 dependabot `ureq` 3.x bump fails EVERY check (cargo test, clippy, fixtures)
 with `package depends on ureq with feature 'tls' but ureq does not have that
 feature`. The workspace pin `ureq = { version = "2.12", ... }` is load-bearing
-- revert any 3.x bump to 2.12 and commit (never reset); the auto-merge bot
-re-applies the bump periodically, so consider a dependabot ignore rule.
+- revert any 3.x bump to 2.12 and commit (never reset). `.github/dependabot.yml`
+now ignores semver-major `ureq` bumps so the bot stops re-opening the same red
+PR; do not delete that ignore entry.
 Also: when the development default model changes, update the hardcoded
 default-model-id grep in `Check.yml`'s offline fixtures-docs job - it greps
 the regenerated `catalog.generated.yaml` for the current default id.

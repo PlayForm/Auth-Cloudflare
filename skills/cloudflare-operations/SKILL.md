@@ -32,7 +32,7 @@ export CLOUDFLARE_ACCOUNT_ID="<account id>" # Workers & Pages → Overview
 export CLOUDFLARE_API_TOKEN="<token>"       # Account → Cloudflare Workers AI → Edit
 ```
 
-The account ID is not a secret; the token is. Never paste a `cfut_…` token
+The account ID is not a secret; the token is. Never paste a `cfut_...` token
 into chat, git, or logs - the repo's pre-commit hook blocks `cfut_`/`cfwt_`
 prefixes in staged diffs.
 
@@ -45,6 +45,13 @@ prefixes in staged diffs.
   from the primary picker.
 - Network failure → curated `FALLBACK_MODELS` (same order as the verified
   coding set).
+- **Delisting is additive, never subtractive.** An id already shipped in
+  `FALLBACK_MODELS` that a fresh snapshot no longer lists stays in the list,
+  moves into `DEPRECATED_MODELS`, and is reported `deprecated` with
+  `primary_agent_eligible: false` - it still resolves and still classifies, it
+  is simply never offered. `scripts/regenerate-fixtures.py` recomputes both
+  lists from the snapshot each run, so a model Cloudflare restores drops back
+  out of the deprecated set by itself. Never hand-edit those two consts.
 
 ## Troubleshooting
 
@@ -55,6 +62,7 @@ prefixes in staged diffs.
 | HTTP 403 on inference                     | Token lacks Cloudflare Workers AI Write             | Re-scope the token                                   |
 | HTTP 401                                  | Token expired/revoked                               | Roll the token                                       |
 | Model not in picker                       | Non-chat or safety model                            | Filtered by design; use chat models                  |
+| New model missing from `model_overrides`  | Sync skipped a real change (`unchanged: true`)      | Fixed in 0.0.10 (deep-copy compare); re-run the sync |
 | `.../ai/v1/models` 404 in logs            | Hermes default probe                                | Expected - plugin sets `supports_health_check=False` |
 
 ## Testing the provider
@@ -67,7 +75,7 @@ hermes chat -q "Reply with exactly: Cloudflare Workers AI connection confirmed."
 curl -sS "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/ai/v1/chat/completions" \
 	-H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
 	-H "Content-Type: application/json" \
-	-d '{"model":"@cf/zai-org/glm-5.3-flash","messages":[{"role":"user","content":"Say OK"}]}'
+	-d '{"model":"@cf/deepseek-ai/deepseek-v4.1-flash-1017","messages":[{"role":"user","content":"Say OK"}]}'
 ```
 
 ## Local dev with the installed binary
@@ -95,9 +103,17 @@ configured:false` + `exit_code: 2`, never a bare "exited with code 2".
 
 ```text
 Default:            @cf/deepseek-ai/deepseek-v4.1-flash-1017
-Code-heavy:         @cf/moonshotai/kimi-k2.7-code
-DeepSeek reasoning: @cf/deepseek-ai/deepseek-v4-pro-0813
-Experimental:       @cf/zai-org/glm-5.3-flash   (delivery conformance pending)
-Premium escalation: @cf/zai-org/glm-5.3
+Long context:       @cf/thinkingmachines/inkling-2-small    (1,048,576; text+image; tools unknown)
+Experimental:       @cf/zai-org/glm-5.3                     (conformance pending)
 Cheap fallback:     @cf/openai/gpt-oss-20b
+Cheap short:        @cf/cloudflare/clairic-flash            (65,536; $0.10/M in)
 ```
+
+Delisted ids kept in the bundled catalog as `deprecated` (resolvable, never
+offered): `@cf/moonshotai/kimi-k2.7-code`, `@cf/deepseek-ai/deepseek-v4-pro-0813`,
+`@cf/deepseek-ai/deepseek-v4-flash-0731`, `@cf/zai-org/glm-5.3-flash`,
+`@cf/zai-org/glm-5.2`, `@cf/moonshotai/kimi-k2.6`, `@cf/qwen/qwq-32b`,
+`@cf/qwen/qwen3-30b-a3b-fp8`, `@cf/nvidia/nemotron-3-120b-a12b`,
+`@cf/ibm-granite/granite-4.0-h-micro`, and the small llama-3.x / r1-distill
+models. The list is regenerated - read `DEPRECATED_MODELS` in
+`crates/auth-cloudflare/src/catalog.rs` for the current set.
