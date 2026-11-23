@@ -1,0 +1,25 @@
+name: Probe macOS runners
+
+# TEMPORARY diagnostic workflow - deleted once the supported label is known.
+# GitHub cancels `macos-14` jobs on this repo with "The configuration
+# 'macos-14-arm64-us-default' is not supported", so Build.yml's two apple legs
+# never run. This probes the remaining hosted macOS labels.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: Probe ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15-intel, macos-13, macos-15]
+    steps:
+      - name: Report runner identity
+        run: |
+          uname -a
+          echo "arch=$(uname -m)"
