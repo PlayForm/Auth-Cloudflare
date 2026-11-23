@@ -444,7 +444,7 @@ plugin. Cloudflare implements exactly that contract:
 
 ---
 
-## Contributing 🤝
+## Contributing 🫱🏻‍🫲🏿
 
 | Want to…          | Start here                                                                                       |
 | ----------------- | ------------------------------------------------------------------------------------------------ |
