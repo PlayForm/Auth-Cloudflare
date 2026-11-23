@@ -384,7 +384,10 @@ pub fn model_family_for(id: &str) -> Option<&'static str> {
 /// ``supports_vision`` so Hermes' per-model catalog knows which Cloudflare
 /// models take images; the plugin's default_vision_model() returns the
 /// dedicated vision id for auxiliary vision calls.
-pub const VISION_CONFIRMED: &[&str] = &["@cf/meta/llama-3.2-11b-vision-instruct", "@cf/deepseek-ai/deepseek-v4.1-flash-1017"];
+pub const VISION_CONFIRMED: &[&str] = &[
+	"@cf/meta/llama-3.2-11b-vision-instruct",
+	"@cf/deepseek-ai/deepseek-v4.1-flash-1017",
+];
 
 /// True when *id* is a vision-capable Cloudflare model.
 pub fn vision_confirmed_for(id: &str) -> bool {
@@ -588,11 +591,23 @@ mod tests {
 	}
 
 	#[test]
-	fn glm_flash_is_experimental() {
+	fn glm_flash_is_deprecated() {
+		// glm-5.3-flash was experimental until Cloudflare delisted it; upstream
+		// delisting outranks the older opinion.
 		let entry = catalog_entry("@cf/zai-org/glm-5.3-flash", 1_310_720, 1_788_800_000);
+		let record = ModelRecord::from_openrouter(&entry).expect("glm entry normalizes");
+		assert_eq!(record.visibility, Visibility::Deprecated);
+		assert!(!record.is_default());
+		assert!(!record.eligible_for_primary_picker());
+	}
+
+	#[test]
+	fn glm_53_is_experimental() {
+		let entry = catalog_entry("@cf/zai-org/glm-5.3", 1_048_576, 1_788_800_000);
 		let record = ModelRecord::from_openrouter(&entry).expect("glm entry normalizes");
 		assert_eq!(record.visibility, Visibility::Experimental);
 		assert!(!record.is_default());
+		assert!(record.eligible_for_primary_picker());
 	}
 
 	#[test]

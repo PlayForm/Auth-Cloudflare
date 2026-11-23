@@ -1,5 +1,45 @@
 # Changelog
 
+## 0.0.10
+
+### Feature
+
+- Catalog refreshed from `/ai/models/search`: the account now lists 20
+  chat-capable models. Two of them are new to the bundled catalog:
+  - `@cf/thinkingmachines/inkling-2-small` - 1,048,576-token context,
+    text+image input, $0.30/M input and $1.00/M output, listed by Cloudflare
+    as primary-agent eligible. Added to `PRIMARY_AGENT_MODELS`.
+  - `@cf/cloudflare/clairic-flash` - 65,536-token context, $0.10/M input,
+    listed as primary-agent eligible.
+- New `DEPRECATED_MODELS` const (catalog policy). Deprecation is an upstream
+  fact: an id Cloudflare stops listing stays resolvable and still classifies,
+  but it is never the default, never primary-agent eligible, and never offered
+  by the picker. `ModelPolicy::status_for` checks it before the curated
+  entries, so a delisted model that used to be experimental
+  (`@cf/zai-org/glm-5.3-flash`) now reports `deprecated`, and
+  `@cf/zai-org/glm-5.3` remains the sole experimental model.
+- `scripts/regenerate-fixtures.py` is now ADDITIVE. `retained_ids()` keeps every
+  id already shipped in `FALLBACK_MODELS` that the fresh snapshot no longer
+  lists, marks it deprecated, and rewrites `DEPRECATED_MODELS` from that set -
+  so a future refresh can never silently shrink the offline catalog, and a
+  model Cloudflare restores drops back out of the deprecated set on its own.
+  `plugin_defaults.json` carries the same entries as
+  `status: deprecated, primary_agent_eligible: false`, and
+  `primary_agent_models` is a union rather than a snapshot intersection.
+
+### Change
+
+- Bundled fallback catalog is 33 models: the 19 live non-hidden models plus 14
+  retained deprecated ids (`kimi-k2.7-code`, `deepseek-v4-pro-0813`,
+  `deepseek-v4-flash-0731`, `glm-5.3-flash`, `glm-5.2`, `kimi-k2.6`,
+  `qwq-32b`, `qwen3-30b-a3b-fp8`, `llama-3.2-1b-instruct`,
+  `llama-3.2-3b-instruct`, `llama-3.1-8b-instruct-fp8`,
+  `deepseek-r1-distill-qwen-32b`, `nemotron-3-120b-a12b`,
+  `granite-4.0-h-micro`).
+- Bumped package version from 0.0.9 to 0.0.10 (crates `auth-cloudflare` and
+  `auth-hermes-cloudflare` incl. the path-dep pin, package.json, plugin.yaml,
+  BINARY_VERSION, README badges, version fixture).
+
 ## 0.0.9
 
 ### Feature

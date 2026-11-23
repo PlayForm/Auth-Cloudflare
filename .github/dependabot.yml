@@ -7,6 +7,13 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    # ureq 3.x renamed the `tls` feature (and reshaped `Error::Status`), so a
+    # 3.x bump fails every check: "package depends on ureq with feature 'tls'
+    # but ureq does not have that feature". Ignored so the bot stops
+    # re-opening the same red bump every week.
+    ignore:
+      - dependency-name: "ureq"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "github-actions"
     directory: "/"

@@ -9,7 +9,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::catalog::{ModelRecord, ModelRole, PricingPerMillion};
+use crate::catalog::{ModelRecord, ModelRole, PricingPerMillion, DEPRECATED_MODELS};
 use crate::health::{ModelVerification, VerificationStatus};
 use crate::{DEFAULT_MODEL, EXPERIMENTAL_MODEL, PREMIUM_CODING_MODEL, PREMIUM_REASONING_MODEL};
 
@@ -39,6 +39,42 @@ pub enum ModelStatus {
 
 fn default_true() -> bool {
 	true
+}
+
+/// Reason recorded for an id Cloudflare no longer lists.
+pub const DELISTED_REASON: &str =
+	"Delisted from Cloudflare's model catalog; retained for existing configurations.";
+
+/// Status as published: upstream delisting outranks the curated opinion that
+/// was recorded when the id was still listed.
+fn published_status(model_id: &str, curated: ModelStatus) -> ModelStatus {
+	if DEPRECATED_MODELS.contains(&model_id) {
+		return ModelStatus::Deprecated;
+	}
+	curated
+}
+
+/// Eligibility as published: a delisted id is never primary-agent eligible.
+fn published_eligibility(model_id: &str, curated: bool) -> bool {
+	curated && !DEPRECATED_MODELS.contains(&model_id)
+}
+
+/// Reason as published: a delisted id reports why it is gone, not the older
+/// delivery opinion.
+fn published_reason(model_id: &str, curated: &str) -> String {
+	if DEPRECATED_MODELS.contains(&model_id) {
+		return DELISTED_REASON.to_string();
+	}
+	curated.to_string()
+}
+
+/// Apply the published view to one curated entry (see [`published_status`]).
+fn publish(mut entry: PolicyEntry) -> PolicyEntry {
+	entry.status = published_status(&entry.model_id, entry.status);
+	entry.primary_agent_eligible =
+		published_eligibility(&entry.model_id, entry.primary_agent_eligible);
+	entry.reason = published_reason(&entry.model_id, &entry.reason);
+	entry
 }
 
 /// One policy opinion about one model.
@@ -161,7 +197,13 @@ impl ModelPolicy {
 					reason: "Safety classifier.".to_string(),
 					cost_tier: None,
 				},
-			],
+			]
+			// One publish pass over the curated entries: a pointer that named an
+			// id Cloudflare has since delisted reports `deprecated` (and loses
+			// eligibility) without rewriting every entry above.
+			.into_iter()
+			.map(publish)
+			.collect(),
 		}
 	}
 
@@ -387,10 +429,14 @@ mod tests {
 			.iter()
 			.find(|entry| entry.model_id == EXPERIMENTAL_MODEL)
 			.expect("glm entry present");
-		assert_eq!(glm.status, ModelStatus::Experimental);
+		// EXPERIMENTAL_MODEL still names the curated experimental pointer
+		// (glm-5.3-flash), which Cloudflare has since delisted - the published
+		// view is deprecated, not experimental.
+		assert_eq!(glm.status, ModelStatus::Deprecated);
 		assert_eq!(glm.rank, 900);
 		assert!(!glm.default);
-		assert_eq!(glm.reason, "Observed delivery failures; requires passing conformance suite.");
+		assert!(!glm.primary_agent_eligible);
+		assert_eq!(glm.reason, DELISTED_REASON);
 
 		let glm_53 = policy
 			.models
@@ -418,8 +464,21 @@ mod tests {
 		let policy = ModelPolicy::default_policy();
 		assert_eq!(policy.status_for("@cf/some-org/unknown-model"), ModelStatus::Available);
 		assert_eq!(policy.status_for(DEFAULT_MODEL), ModelStatus::Recommended);
-		assert_eq!(policy.status_for(EXPERIMENTAL_MODEL), ModelStatus::Experimental);
+		// The curated experimental pointer is delisted upstream; the still-listed
+		// GLM model carries the experimental status.
+		assert_eq!(policy.status_for(EXPERIMENTAL_MODEL), ModelStatus::Deprecated);
+		assert_eq!(policy.status_for("@cf/zai-org/glm-5.3"), ModelStatus::Experimental);
 		assert_eq!(policy.status_for("@cf/meta/llama-guard-3-8b"), ModelStatus::Hidden);
+	}
+
+	#[test]
+	fn deprecated_ids_lose_eligibility() {
+		let policy = ModelPolicy::default_policy();
+		// Listed in DEPRECATED_MODELS but absent from the curated entries: the
+		// status_for / is_primary_agent_eligible early returns still cover it.
+		assert_eq!(policy.status_for("@cf/zai-org/glm-5.2"), ModelStatus::Deprecated);
+		assert!(!policy.is_primary_agent_eligible("@cf/zai-org/glm-5.2"));
+		assert!(!policy.is_primary_agent_eligible(EXPERIMENTAL_MODEL));
 	}
 
 	#[test]
@@ -546,7 +605,10 @@ mod ranking_tests {
 	#[test]
 	fn passing_deepseek_like_outscores_passing_glm_like_on_tool_loop() {
 		let deepseek = record(DEFAULT_MODEL, 1_310_720, 0.15, 0.5);
-		let glm = record(EXPERIMENTAL_MODEL, 1_310_720, 0.15, 0.5);
+		// A listed GLM model: the curated experimental pointer (glm-5.3-flash) is
+		// delisted and therefore unrankable, which would make this a test of
+		// nothing but a None.
+		let glm = record("@cf/zai-org/glm-5.3", 1_310_720, 0.15, 0.5);
 		let ds_verification = verification(VerificationStatus::Passing, 100, 99, Some(0.96), Some(2_000));
 		let glm_verification = verification(VerificationStatus::Passing, 100, 99, Some(0.70), Some(2_000));
 		let ds_score = ranking_score(&deepseek, Some(&ds_verification)).expect("deepseek ranks");

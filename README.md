@@ -9,8 +9,8 @@
 > and `hermes model` offers the account's Workers AI chat models.
 > _One provider. Two env vars. Zero hand-rolled YAML._
 
-[![release](https://img.shields.io/static/v1?label=release&message=v0.0.9&color=blue)](https://github.com/PlayForm/Auth-Cloudflare/releases)
-[![plugin](https://img.shields.io/static/v1?label=plugin&message=v0.0.9&color=purple)](https://github.com/PlayForm/Auth-Hermes-Cloudflare/blob/Current/plugin.yaml)
+[![release](https://img.shields.io/static/v1?label=release&message=v0.0.10&color=blue)](https://github.com/PlayForm/Auth-Cloudflare/releases)
+[![plugin](https://img.shields.io/static/v1?label=plugin&message=v0.0.10&color=purple)](https://github.com/PlayForm/Auth-Hermes-Cloudflare/blob/Current/plugin.yaml)
 [![hermes](https://img.shields.io/static/v1?label=hermes&message=%E2%89%A50.16.0&color=blue)](https://github.com/NousResearch/hermes-agent)
 [![rust](https://img.shields.io/static/v1?label=rust&message=1.88%2B&color=orange)](https://www.rust-lang.org)
 [![license](https://img.shields.io/static/v1?label=license&message=CC0-1.0&color=lightgrey)](LICENSE)
@@ -133,7 +133,7 @@ Each `models[]` object carries:
 | :----------------------- | :----- | :------------------------------------------------------------ |
 | `id`                     | string | Model id (`@cf/...`)                                          |
 | `display_name`           | string | Human-readable model name                                     |
-| `status`                 | string | Policy status (`recommended`, `available`, `experimental`, …) |
+| `status`                 | string | Policy status (`recommended`, `available`, `experimental`, ...) |
 | `primary_agent_eligible` | bool   | Whether the model may serve as the primary agent model        |
 | `context_tokens`         | int    | Context window size in tokens                                 |
 | `pricing_per_million`    | object | `input`, `cached_input`, `output` per-million USD (nullable)  |
@@ -148,7 +148,7 @@ model-id strings (picker order). The other JSON commands are `version`
 
 ## The Problem 🔥
 
-Hermes discovers provider catalogs at the OpenAI-standard `GET …/models`.
+Hermes discovers provider catalogs at the OpenAI-standard `GET .../models`.
 Cloudflare's Workers AI surface does not implement that endpoint - the
 account-aware catalog lives at `/ai/models/search` and answers in the
 OpenRouter format instead.
@@ -173,9 +173,9 @@ fallback catalog keeps the picker alive when the network is unavailable.
 ```text
  ENV VARS ──────────────► auth-hermes-cloudflare ────────► Hermes model picker
                              │
-                             ├─ CLOUDFLARE_ACCOUNT_ID   → derived base URL (…/ai/v1)
+                             ├─ CLOUDFLARE_ACCOUNT_ID   → derived base URL (.../ai/v1)
                              ├─ CLOUDFLARE_API_TOKEN    → Bearer header only, never logged
-                             ├─ catalog discovery      → GET …/ai/models/search (OpenRouter)
+                             ├─ catalog discovery      → GET .../ai/models/search (OpenRouter)
                              ├─ chat filter            → @cf/ chat models only, no guards
                              └─ offline fallback       → curated catalog in the profile
 
@@ -221,10 +221,10 @@ skills/                          ← cloudflare-* skills
 
 | Route                                                 | Purpose                                         |
 | :---------------------------------------------------- | :---------------------------------------------- |
-| `POST …/accounts/<ACCOUNT_ID>/ai/v1/chat/completions` | OpenAI-compatible inference                     |
-| `GET  …/accounts/<ACCOUNT_ID>/ai/models/search`       | Account-aware model catalog (OpenRouter format) |
+| `POST .../accounts/<ACCOUNT_ID>/ai/v1/chat/completions` | OpenAI-compatible inference                     |
+| `GET  .../accounts/<ACCOUNT_ID>/ai/models/search`       | Account-aware model catalog (OpenRouter format) |
 | `GET  /client/v4/user/tokens/verify`                  | Token health check                              |
-| `POST …/accounts/<ACCOUNT_ID>/ai/run/<model>`         | Native REST inference (not used by the plugin)  |
+| `POST .../accounts/<ACCOUNT_ID>/ai/run/<model>`         | Native REST inference (not used by the plugin)  |
 
 All endpoint/auth logic lives in the Rust core (`crates/auth-cloudflare`);
 the Python plugin is a thin in-process provider that mirrors it for the
@@ -308,13 +308,14 @@ The default is `@cf/deepseek-ai/deepseek-v4.1-flash-1017` - DeepSeek V4.1 Flash:
 a 552B-backbone multimodal MoE with 1,048,576-token context, function calling,
 reasoning (`none`/`low`/`high`/`max`), and native image+text input; $0.30/M
 input and $1.20/M output at Cloudflare's published rates ($0.006/M cached
-input). It is the development default; GLM-5.3 Flash stays experimental until
-conformance thresholds are met.
+input). It is the development default; GLM-5.3 stays experimental until
+conformance thresholds are met, and models Cloudflare delists stay in the
+bundled catalog marked `deprecated` (still resolvable by id, never offered).
 
 Discovery is live and account-aware: the catalog is fetched from
 `/ai/models/search` in the OpenRouter format and filtered to chat-capable
 `@cf/` models. When the network is unavailable the plugin falls back to a
-curated catalog compiled into the profile (31 primary-eligible chat models).
+curated catalog compiled into the profile (33 primary-eligible chat models).
 
 > [!WARNING]
 >
@@ -323,10 +324,11 @@ curated catalog compiled into the profile (31 primary-eligible chat models).
 > `unsupported` from absent metadata - capability unknown ≠ capability
 > unsupported.
 
-**`Curated fallback catalog (31 primary-eligible chat models)`**
+**`Curated fallback catalog (33 primary-eligible chat models)`**
 
 ```text
 @cf/deepseek-ai/deepseek-v4.1-flash-1017      @cf/moonshotai/kimi-k2.7-code
+@cf/thinkingmachines/inkling-2-small          @cf/cloudflare/clairic-flash
 @cf/deepseek-ai/deepseek-v4-pro-0813          @cf/openai/gpt-oss-120b
 @cf/meta/llama-3.2-3b-instruct                @cf/deepseek-ai/deepseek-r1-distill-qwen-32b
 @cf/meta/llama-3.1-8b-instruct-fp8            @cf/meta/llama-3.2-1b-instruct
@@ -372,7 +374,7 @@ Not supported in this release:
 
 | Symptom                                                      | Cause / fix                                                                                                                                                                 |
 | :----------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `could not verify this endpoint via …/ai/v1/models`          | Expected - Cloudflare has no OpenAI `/models` endpoint. The provider disables health probing (`supports_health_check=False`) and discovers via `/ai/models/search` instead. |
+| `could not verify this endpoint via .../ai/v1/models`          | Expected - Cloudflare has no OpenAI `/models` endpoint. The provider disables health probing (`supports_health_check=False`) and discovers via `/ai/models/search` instead. |
 | `Missing environment variable CLOUDFLARE_ACCOUNT_ID`         | The error names the exact variable and prints the fix: export it from Workers & Pages → Overview → Account ID.                                                              |
 | `Missing environment variable CLOUDFLARE_API_TOKEN`          | Export a custom token scoped to Account → Workers AI → Write (some dashboards label it Edit).                                                                               |
 | Token verify returns 401 / 403                               | Wrong, expired, or under-scoped token - check `GET /client/v4/user/tokens/verify` and re-create the token with Account → Workers AI → Edit.                                 |
@@ -446,7 +448,7 @@ plugin. Cloudflare implements exactly that contract:
 
 ## Contributing 🫱🏻‍🫲🏿
 
-| Want to…          | Start here                                                                                       |
+| Want to...          | Start here                                                                                       |
 | ----------------- | ------------------------------------------------------------------------------------------------ |
 | Report a bug      | [Open an issue](https://github.com/PlayForm/Auth-Cloudflare/issues/new?template=bug_report.md)   |
 | Suggest a feature | [Start a discussion](https://github.com/PlayForm/Auth-Cloudflare/discussions/new?category=ideas) |
