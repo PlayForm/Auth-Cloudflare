@@ -48,19 +48,21 @@ fn deepseek_fixture_normalizes_to_recommended_default() {
 }
 
 #[test]
-fn glm_fixture_normalizes_to_experimental() {
+fn glm_fixture_normalizes_to_deprecated() {
+	// The glm-5.3-flash fixture is a delisted model: it still normalizes and
+	// still classifies, but it is deprecated and never offered.
 	let record = normalize(GLM);
 	assert_eq!(record.id, "@cf/zai-org/glm-5.3-flash");
 	assert_eq!(record.publisher, "zai-org");
 	assert_eq!(record.role, ModelRole::CodingAgent);
-	assert_eq!(record.visibility, Visibility::Experimental);
+	assert_eq!(record.visibility, Visibility::Deprecated);
 	assert_eq!(record.capabilities.tools, CapabilityState::Confirmed);
-	assert!(record.eligible_for_primary_picker());
+	assert!(!record.eligible_for_primary_picker());
 	assert!(!record.is_default());
 
 	let policy = ModelPolicy::default_policy();
-	assert_eq!(policy.status_for(&record.id), ModelStatus::Experimental);
-	assert!(policy.is_primary_agent_eligible(&record.id));
+	assert_eq!(policy.status_for(&record.id), ModelStatus::Deprecated);
+	assert!(!policy.is_primary_agent_eligible(&record.id));
 }
 
 #[test]

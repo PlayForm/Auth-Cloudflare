@@ -31,7 +31,7 @@
 //! Security contract: the API token is only ever held by the core's
 //! `SecretString` and flows exclusively into the `Authorization: Bearer ***
 //! header of the catalog GET; this binary never prints, logs, or serializes
-//! it. Doctor emits a redacted account id (`624acc…9f84` pattern) and exits 7 when the user
+//! it. Doctor emits a redacted account id (`624acc...9f84` pattern) and exits 7 when the user
 //! config file contains an `api_token` VALUE (the config file may only name
 //! the env var holding the token).
 
@@ -407,7 +407,7 @@ fn version_json() -> (i32, serde_json::Value) {
 
 /// Doctor - never performs a network or paid inference request. The token
 /// value never appears anywhere in the output; account id is redacted as
-/// `624acc…9f84`.
+/// `624acc...9f84`.
 ///
 /// Exit codes: 0 ok · 2 credentials missing/invalid · 7 unsafe config
 /// (the config file must not carry an `api_token` VALUE).
@@ -577,7 +577,7 @@ fn detect_unsafe_config(path: &Path) -> bool {
 }
 
 /// Redact an account id as first-6 chars + ellipsis + last-4 chars
-/// (`624acc…9f84` pattern). The account id is operational
+/// (`624acc...9f84` pattern). The account id is operational
 /// metadata, not a secret - this is display hygiene for the endpoint URL.
 fn redact_account_id(id: &str) -> String {
 	let chars: Vec<char> = id.chars().collect();
@@ -585,16 +585,16 @@ fn redact_account_id(id: &str) -> String {
 	if n >= 10 {
 		let head: String = chars[..6].iter().collect();
 		let tail: String = chars[n - 4..].iter().collect();
-		format!("{head}…{tail}")
+		format!("{head}...{tail}")
 	} else if n >= 4 {
 		let head: String = chars[..2].iter().collect();
 		let tail: String = chars[n - 2..].iter().collect();
-		format!("{head}…{tail}")
+		format!("{head}...{tail}")
 	} else if n >= 2 {
 		let head: String = chars[..1].iter().collect();
-		format!("{head}…")
+		format!("{head}...")
 	} else {
-		"…".to_string()
+		"...".to_string()
 	}
 }
 
@@ -1840,7 +1840,7 @@ mod tests {
 				assert_eq!(code, EXIT_OK);
 				assert_eq!(value["status"], "ok");
 				assert_eq!(value["account_id"]["configured"], true);
-				assert_eq!(value["account_id"]["redacted"], "012345…cdef");
+				assert_eq!(value["account_id"]["redacted"], "012345...cdef");
 				assert_eq!(value["api_token"]["configured"], true);
 				assert_eq!(value["api_token"]["value_redacted"], true);
 				assert_eq!(
@@ -1929,10 +1929,10 @@ mod tests {
 
 	#[test]
 	fn redact_account_id_patterns() {
-		assert_eq!(redact_account_id("624acc1234567890abcdef123456789f84"), "624acc…9f84");
-		assert_eq!(redact_account_id("abcdef"), "ab…ef");
-		assert_eq!(redact_account_id("ab"), "a…");
-		assert_eq!(redact_account_id(""), "…");
+		assert_eq!(redact_account_id("624acc1234567890abcdef123456789f84"), "624acc...9f84");
+		assert_eq!(redact_account_id("abcdef"), "ab...ef");
+		assert_eq!(redact_account_id("ab"), "a...");
+		assert_eq!(redact_account_id(""), "...");
 	}
 
 	// ------------------------------------------------------------------
@@ -2388,7 +2388,7 @@ mod tests {
 	}
 
 	#[test]
-	fn model_inspect_serves_experimental_from_cache() {
+	fn model_inspect_serves_deprecated_from_cache() {
 		let home = scratch_dir("inspect-cache");
 		let _ = std::fs::remove_dir_all(&home);
 		with_env(
@@ -2402,7 +2402,10 @@ mod tests {
 				let (code, value) = run_json(&["model", "inspect", "@cf/zai-org/glm-5.3-flash", "--format", "json"]);
 				assert_eq!(code, EXIT_OK);
 				assert_eq!(value["source"], "cache");
-				assert_eq!(value["status"], "experimental", "policy marks GLM-5.3 Flash experimental");
+				assert_eq!(
+					value["status"], "deprecated",
+					"policy marks the delisted GLM-5.3 Flash deprecated"
+				);
 			},
 		);
 		let _ = std::fs::remove_dir_all(&home);

@@ -39,6 +39,10 @@
 - Bumped package version from 0.0.9 to 0.0.10 (crates `auth-cloudflare` and
   `auth-hermes-cloudflare` incl. the path-dep pin, package.json, plugin.yaml,
   BINARY_VERSION, README badges, version fixture).
+- Kept `ureq` on 2.12 and ignored semver-major `ureq` bumps in
+  `.github/dependabot.yml`: 3.x renamed the `tls` feature, so the bot's weekly
+  3.4 bump failed every check (`package depends on ureq with feature 'tls' but
+  ureq does not have that feature`) and had to be reverted by hand each time.
 
 ## 0.0.9
 

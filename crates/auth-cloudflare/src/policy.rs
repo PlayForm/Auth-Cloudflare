@@ -503,7 +503,9 @@ mod tests {
 		let value: serde_json::Value = serde_json::from_str(&json).expect("parses");
 		assert_eq!(value["version"], "1");
 		assert_eq!(value["models"][0]["status"], "recommended");
-		assert_eq!(value["models"][5]["status"], "experimental");
+		// [5] is the curated experimental pointer (glm-5.3-flash), delisted
+		// upstream; [6] is the listed GLM model.
+		assert_eq!(value["models"][5]["status"], "deprecated");
 		assert_eq!(value["models"][6]["status"], "experimental");
 		assert_eq!(value["models"][7]["status"], "hidden");
 	}
