@@ -19,26 +19,16 @@ use serde::{Deserialize, Serialize};
 /// position (delivery reliability not yet validated).
 pub const FALLBACK_MODELS: &[&str] = &[
 	"@cf/deepseek-ai/deepseek-v4.1-flash-1017",
-	"@cf/moonshotai/kimi-k2.7-code",
-	"@cf/deepseek-ai/deepseek-v4-pro-0813",
+	"@cf/thinkingmachines/inkling-2-small",
 	"@cf/openai/gpt-oss-120b",
-	"@cf/meta/llama-3.2-3b-instruct",
-	"@cf/deepseek-ai/deepseek-r1-distill-qwen-32b",
-	"@cf/meta/llama-3.1-8b-instruct-fp8",
-	"@cf/meta/llama-3.2-1b-instruct",
-	"@cf/moonshotai/kimi-k2.6",
+	"@cf/cloudflare/clairic-flash",
 	"@cf/cloudflare/clef",
 	"@cf/zai-org/glm-4.7-flash",
 	"@cf/meta/llama-3.3-70b-instruct-fp8-fast",
-	"@cf/ibm-granite/granite-4.0-h-micro",
-	"@cf/deepseek-ai/deepseek-v4-flash-0731",
 	"@cf/cloudflare/clairic",
 	"@cf/cloudflare/clef-omni",
 	"@cf/qwen/qwen2.5-coder-32b-instruct",
-	"@cf/zai-org/glm-5.2",
-	"@cf/nvidia/nemotron-3-120b-a12b",
 	"@cf/aisingapore/gemma-sea-lion-v4-27b-it",
-	"@cf/qwen/qwen3-30b-a3b-fp8",
 	"@cf/google/gemma-4-26b-a4b-it",
 	"@cf/mistralai/mistral-small-3.1-24b-instruct",
 	"@cf/meta/llama-3.2-11b-vision-instruct",
@@ -46,17 +36,56 @@ pub const FALLBACK_MODELS: &[&str] = &[
 	"@cf/openai/gpt-oss-20b",
 	"@cf/meta/llama-4-scout-17b-16e-instruct",
 	"@cf/cloudflare/clef-flash",
-	"@cf/qwen/qwq-32b",
 	"@cf/zai-org/glm-5.3",
+	"@cf/moonshotai/kimi-k2.7-code",
+	"@cf/deepseek-ai/deepseek-v4-pro-0813",
+	"@cf/meta/llama-3.2-3b-instruct",
+	"@cf/deepseek-ai/deepseek-r1-distill-qwen-32b",
+	"@cf/meta/llama-3.1-8b-instruct-fp8",
+	"@cf/meta/llama-3.2-1b-instruct",
+	"@cf/moonshotai/kimi-k2.6",
+	"@cf/ibm-granite/granite-4.0-h-micro",
+	"@cf/deepseek-ai/deepseek-v4-flash-0731",
+	"@cf/zai-org/glm-5.2",
+	"@cf/nvidia/nemotron-3-120b-a12b",
+	"@cf/qwen/qwen3-30b-a3b-fp8",
+	"@cf/qwen/qwq-32b",
 	"@cf/zai-org/glm-5.3-flash",
 ];
 
 /// Models currently marked experimental by project policy.
 /// Delivery conformance below threshold - selectable, never the default.
-pub const EXPERIMENTAL_MODELS: &[&str] = &["@cf/zai-org/glm-5.3-flash", "@cf/zai-org/glm-5.3"];
+pub const EXPERIMENTAL_MODELS: &[&str] = &["@cf/zai-org/glm-5.3"];
 
 /// Models hidden from the primary agent picker (safety/classification).
 pub const HIDDEN_MODELS: &[&str] = &["@cf/meta/llama-guard-3-8b"];
+
+/// Models Cloudflare no longer lists in `/ai/models/search`, retained so an
+/// existing configuration keeps resolving its pinned id.
+///
+/// Precedence is deliberate: a delisted model is `Deprecated` even when an
+/// older policy opinion called it experimental, and it is never the default
+/// and never primary-agent eligible. Deprecation is an upstream fact, not a
+/// delivery verdict - the id still resolves and still classifies; it is only
+/// no longer offered. `scripts/regenerate-fixtures.py` recomputes this list
+/// as "shipped in `FALLBACK_MODELS` but absent from the fresh snapshot", so
+/// a model Cloudflare restores drops back out of it on the next refresh.
+pub const DEPRECATED_MODELS: &[&str] = &[
+	"@cf/moonshotai/kimi-k2.7-code",
+	"@cf/deepseek-ai/deepseek-v4-pro-0813",
+	"@cf/meta/llama-3.2-3b-instruct",
+	"@cf/deepseek-ai/deepseek-r1-distill-qwen-32b",
+	"@cf/meta/llama-3.1-8b-instruct-fp8",
+	"@cf/meta/llama-3.2-1b-instruct",
+	"@cf/moonshotai/kimi-k2.6",
+	"@cf/ibm-granite/granite-4.0-h-micro",
+	"@cf/deepseek-ai/deepseek-v4-flash-0731",
+	"@cf/zai-org/glm-5.2",
+	"@cf/nvidia/nemotron-3-120b-a12b",
+	"@cf/qwen/qwen3-30b-a3b-fp8",
+	"@cf/qwen/qwq-32b",
+	"@cf/zai-org/glm-5.3-flash",
+];
 
 /// Versioned snapshot of the whole catalog - the JSON contract envelope.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -104,7 +133,7 @@ pub enum ModelRole {
 	Vision,
 	/// Safety/classification model - never a primary agent model.
 	Safety,
-	/// Non-chat modality (embedding, image, audio, video…).
+	/// Non-chat modality (embedding, image, audio, video...).
 	UnsupportedPrimaryAgent,
 }
 
@@ -355,10 +384,7 @@ pub fn model_family_for(id: &str) -> Option<&'static str> {
 /// ``supports_vision`` so Hermes' per-model catalog knows which Cloudflare
 /// models take images; the plugin's default_vision_model() returns the
 /// dedicated vision id for auxiliary vision calls.
-pub const VISION_CONFIRMED: &[&str] = &[
-	"@cf/meta/llama-3.2-11b-vision-instruct",
-	"@cf/deepseek-ai/deepseek-v4.1-flash-1017",
-];
+pub const VISION_CONFIRMED: &[&str] = &["@cf/meta/llama-3.2-11b-vision-instruct", "@cf/deepseek-ai/deepseek-v4.1-flash-1017"];
 
 /// True when *id* is a vision-capable Cloudflare model.
 pub fn vision_confirmed_for(id: &str) -> bool {
@@ -405,6 +431,10 @@ impl ModelRecord {
 
 		let role_based_visibility = if SAFETY_MARKERS.iter().any(|m| lower.contains(m)) {
 			Visibility::Hidden
+		} else if DEPRECATED_MODELS.contains(&id.as_str()) {
+			// Upstream delisting outranks an older policy opinion (a delisted
+			// model that used to be experimental is deprecated, not experimental).
+			Visibility::Deprecated
 		} else if EXPERIMENTAL_MODELS.contains(&id.as_str()) {
 			Visibility::Experimental
 		} else if FALLBACK_MODELS.first().is_some_and(|m| *m == id.as_str()) {
@@ -456,10 +486,14 @@ impl ModelRecord {
 	}
 
 	/// True when the model may appear in the primary coding picker.
+	///
+	/// Deprecated models are excluded: they stay resolvable by id, but a
+	/// picker must not offer a model Cloudflare has stopped listing.
 	pub fn eligible_for_primary_picker(&self) -> bool {
 		self.role != ModelRole::Safety
 			&& self.role != ModelRole::UnsupportedPrimaryAgent
 			&& self.visibility != Visibility::Hidden
+			&& self.visibility != Visibility::Deprecated
 			&& self.id.starts_with("@cf/")
 	}
 

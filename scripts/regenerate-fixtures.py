@@ -86,6 +86,9 @@ PRIMARY_AGENT_MODELS = [
     "@cf/qwen/qwen3.8-27b",
     "@cf/zai-org/glm-5.3",
     "@cf/zai-org/glm-5.3-flash",
+    # Added with the 2026-11 refresh: 1M-context multimodal model, listed as
+    # available + primary-agent eligible by Cloudflare itself.
+    "@cf/thinkingmachines/inkling-2-small",
 ]
 
 
@@ -140,13 +143,30 @@ def ordered_status_ids(by_id, status):
     return [mid for mid in by_id if by_id[mid]["status"] == status]
 
 
-def derive_fallback(by_id):
-    """Non-hidden models: recommended (default first), available, experimental - snapshot order."""
+def retained_ids(src, by_id):
+    """Ids already shipped in ``FALLBACK_MODELS`` that the snapshot no longer lists.
+
+    Cloudflare delists models. The bundled list is ADDITIVE: a shipped id is
+    kept (and marked deprecated) rather than silently vanishing from the
+    offline catalog the moment upstream stops listing it. Recomputing this from
+    the file each run makes the rule self-correcting - a model Cloudflare
+    restores reappears in the snapshot and drops back out of the deprecated set.
+    """
+    m = re.search(r"pub const FALLBACK_MODELS: &\[&str\] = &\[([^\]]*)\];", src, re.DOTALL)
+    if not m:
+        return []
+    current = [x.strip().strip('"') for x in m.group(1).split(",") if x.strip()]
+    return [mid for mid in current if mid not in by_id]
+
+
+def derive_fallback(by_id, retained):
+    """Non-hidden models: recommended (default first), available, experimental -
+    snapshot order - then the retained (delisted) ids in their shipped order."""
     recommended = ordered_status_ids(by_id, "recommended")
     recommended = [DEFAULT_MODEL] + [m for m in recommended if m != DEFAULT_MODEL]
     available = ordered_status_ids(by_id, "available")
     experimental = ordered_status_ids(by_id, "experimental")
-    return recommended + available + experimental
+    return recommended + available + experimental + list(retained)
 
 
 # ---------------------------------------------------------------- fixtures
@@ -187,8 +207,12 @@ def regenerate_six_fixtures(by_id, dry_run, notes):
 
 # ---------------------------------------------------------------- catalog.rs
 
-def update_status_lists(src, by_id, dry_run, notes):
-    fallback = derive_fallback(by_id)
+def update_status_lists(src, by_id, retained, dry_run, notes):
+    fallback = derive_fallback(by_id, retained)
+    deprecated = retained
+    if deprecated:
+        notes.append("DEPRECATED_MODELS: retained %d delisted id(s): %s" % (
+            len(deprecated), ", ".join(deprecated)))
 
     def members_in_current_order(const_name, status):
         """Members of *const_name* in the file's current order, filtered to the snapshot's *status*."""
@@ -212,6 +236,12 @@ def update_status_lists(src, by_id, dry_run, notes):
         r"(pub const FALLBACK_MODELS: &\[&str\] = &\[\n)(.*?)(\n\];)",
         lambda m: m.group(1) + fmt_array(fallback, True) + "];",
         src,
+        flags=re.DOTALL,
+    )
+    src_new = re.sub(
+        r"(pub const DEPRECATED_MODELS: &\[&str\] = &\[)([^\]]*)(\];)",
+        lambda m: m.group(1) + ("\n" + fmt_array(deprecated, True) if deprecated else "") + m.group(3),
+        src_new,
         flags=re.DOTALL,
     )
     src_new = re.sub(
@@ -283,7 +313,7 @@ def regenerate_workers_ai_catalog(by_id, dry_run, notes):
     return changed
 
 
-def build_plugin_defaults(snapshot, by_id, notes):
+def build_plugin_defaults(snapshot, by_id, retained, notes):
     model_policy = {}
     next_available_rank = 100
     next_recommended_rank = 40
@@ -320,10 +350,25 @@ def build_plugin_defaults(snapshot, by_id, notes):
         }
         model_policy[model_id] = entry
 
-    primary = [mid for mid in PRIMARY_AGENT_MODELS if mid in by_id]
-    absent = [mid for mid in PRIMARY_AGENT_MODELS if mid not in by_id]
-    if absent:
-        notes.append("primary_agent_models: dropped %s (absent from snapshot)" % ", ".join(absent))
+    # Delisted-but-shipped ids stay in the policy as deprecated: the id still
+    # resolves and still classifies, it is simply never offered again.
+    for model_id in retained:
+        model_policy[model_id] = {
+            "status": "deprecated",
+            "rank": None,
+            "default": False,
+            "primary_agent_eligible": False,
+            "reason": "Delisted from Cloudflare's model catalog; retained for existing configurations.",
+        }
+
+    primary = list(PRIMARY_AGENT_MODELS)
+    delisted = [mid for mid in primary if mid in retained]
+    if delisted:
+        notes.append("primary_agent_models: kept %d delisted id(s) (deprecated, not offered)" % len(delisted))
+    added = [mid for mid in by_id if mid not in primary and by_id[mid].get("primary_agent_eligible")
+             and by_id[mid]["status"] != "hidden"]
+    if added:
+        notes.append("primary_agent_models: eligible live ids not on the curated list: %s" % ", ".join(added))
 
     return {
         "schema_version": 1,
@@ -332,12 +377,12 @@ def build_plugin_defaults(snapshot, by_id, notes):
         "default_model": DEFAULT_MODEL,
         "model_policy": model_policy,
         "primary_agent_models": primary,
-        "fallback_models": derive_fallback(by_id),
+        "fallback_models": derive_fallback(by_id, retained),
     }
 
 
-def regenerate_plugin_defaults(snapshot, by_id, dry_run, notes):
-    payload = json.dumps(build_plugin_defaults(snapshot, by_id, notes), indent=2, ensure_ascii=False) + "\n"
+def regenerate_plugin_defaults(snapshot, by_id, retained, dry_run, notes):
+    payload = json.dumps(build_plugin_defaults(snapshot, by_id, retained, notes), indent=2, ensure_ascii=False) + "\n"
     current = ""
     if os.path.exists(PLUGIN_DEFAULTS):
         with open(PLUGIN_DEFAULTS, "r", encoding="utf-8") as fh:
@@ -347,7 +392,8 @@ def regenerate_plugin_defaults(snapshot, by_id, dry_run, notes):
     if not dry_run:
         with open(PLUGIN_DEFAULTS, "w", encoding="utf-8") as fh:
             fh.write(payload)
-    return [(PLUGIN_DEFAULTS, "new plugin defaults (schema_version=1, %d policy entries)" % len(by_id))]
+    entries = len(json.loads(payload)["model_policy"])
+    return [(PLUGIN_DEFAULTS, "new plugin defaults (schema_version=1, %d policy entries)" % entries)]
 
 
 # ---------------------------------------------------------------- main
@@ -368,10 +414,11 @@ def main():
         catalog_src = fh.read()
 
     changes = []
+    retained = retained_ids(catalog_src, by_id)
     changes += regenerate_six_fixtures(by_id, args.dry_run, notes)
-    changes += update_status_lists(catalog_src, by_id, args.dry_run, notes)
+    changes += update_status_lists(catalog_src, by_id, retained, args.dry_run, notes)
     changes += regenerate_workers_ai_catalog(by_id, args.dry_run, notes)
-    changes += regenerate_plugin_defaults(snapshot, by_id, args.dry_run, notes)
+    changes += regenerate_plugin_defaults(snapshot, by_id, retained, args.dry_run, notes)
     report_table_ids_absent(catalog_src, by_id, notes)
 
     if not changes:

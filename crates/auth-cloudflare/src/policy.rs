@@ -47,7 +47,7 @@ fn default_true() -> bool {
 pub struct PolicyEntry {
 	pub model_id: String,
 	pub status: ModelStatus,
-	/// Lower rank = shown higher in the picker (10, 20, 30…).
+	/// Lower rank = shown higher in the picker (10, 20, 30...).
 	pub rank: u32,
 	#[serde(default)]
 	pub default: bool,
@@ -166,7 +166,15 @@ impl ModelPolicy {
 	}
 
 	/// Status for a model; unknown models are `Available`, never blocked by absence.
+	///
+	/// `DEPRECATED_MODELS` is checked FIRST, before the curated entries: the
+	/// premium/experimental pointers were chosen when those ids were listed,
+	/// and upstream delisting outranks that older opinion (glm-5.3-flash is
+	/// deprecated, not experimental).
 	pub fn status_for(&self, model_id: &str) -> ModelStatus {
+		if crate::catalog::DEPRECATED_MODELS.contains(&model_id) {
+			return ModelStatus::Deprecated;
+		}
 		self.models
 			.iter()
 			.find(|entry| entry.model_id == model_id)
@@ -175,8 +183,12 @@ impl ModelPolicy {
 	}
 
 	/// Primary-agent eligibility; unknown models are eligible unless a policy
-	/// entry (e.g. Llama Guard) explicitly excludes them.
+	/// entry (e.g. Llama Guard) explicitly excludes them. A deprecated model is
+	/// never eligible - it resolves by id but is not offered.
 	pub fn is_primary_agent_eligible(&self, model_id: &str) -> bool {
+		if crate::catalog::DEPRECATED_MODELS.contains(&model_id) {
+			return false;
+		}
 		self.models
 			.iter()
 			.find(|entry| entry.model_id == model_id)
