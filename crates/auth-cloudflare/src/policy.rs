@@ -42,8 +42,7 @@ fn default_true() -> bool {
 }
 
 /// Reason recorded for an id Cloudflare no longer lists.
-pub const DELISTED_REASON: &str =
-	"Delisted from Cloudflare's model catalog; retained for existing configurations.";
+pub const DELISTED_REASON: &str = "Delisted from Cloudflare's model catalog; retained for existing configurations.";
 
 /// Status as published: upstream delisting outranks the curated opinion that
 /// was recorded when the id was still listed.
@@ -71,8 +70,7 @@ fn published_reason(model_id: &str, curated: &str) -> String {
 /// Apply the published view to one curated entry (see [`published_status`]).
 fn publish(mut entry: PolicyEntry) -> PolicyEntry {
 	entry.status = published_status(&entry.model_id, entry.status);
-	entry.primary_agent_eligible =
-		published_eligibility(&entry.model_id, entry.primary_agent_eligible);
+	entry.primary_agent_eligible = published_eligibility(&entry.model_id, entry.primary_agent_eligible);
 	entry.reason = published_reason(&entry.model_id, &entry.reason);
 	entry
 }

@@ -1,14 +1,15 @@
 //! Integration tests for the provider ranking score through the PUBLIC
 //! `policy` API, driven by the bundled fixtures: unverified and
 //! non-Passing records never rank, Llama Guard never ranks, a passing
-//! DeepSeek outscores a passing GLM with a lower multi-turn tool-loop rate,
-//! and the ranking weights sum to 1.0.
+//! DeepSeek outscores a passing GPT-OSS with a lower multi-turn tool-loop
+//! rate, deprecated ids never rank, and the ranking weights sum to 1.0.
 
 use auth_cloudflare::health::{CONFORMANCE_SUITE_VERSION, ModelVerification, VerificationConfidence, VerificationStatus};
 use auth_cloudflare::policy::{ranking_score, ModelPolicy, ModelStatus, RankingBreakdown};
 use auth_cloudflare::catalog::ModelRecord;
 
 const DEEPSEEK: &str = include_str!("../fixtures/models/deepseek-v4.1-flash-1017.json");
+const GPT_OSS: &str = include_str!("../fixtures/models/gpt-oss-120b.json");
 const GLM: &str = include_str!("../fixtures/models/glm-5.3-flash.json");
 const LLAMA_GUARD: &str = include_str!("../fixtures/models/llama-guard-3-8b.json");
 
@@ -91,16 +92,28 @@ fn llama_guard_never_ranks_even_when_passing() {
 }
 
 #[test]
-fn passing_deepseek_beats_passing_glm_on_tool_loop() {
+fn passing_deepseek_beats_passing_gpt_oss_on_tool_loop() {
 	let deepseek = record(DEEPSEEK);
-	let glm = record(GLM);
-	// Identical delivery/latency evidence; GLM's multi-turn tool-loop rate
-	// is lower, so GLM must rank below DeepSeek.
+	let other = record(GPT_OSS);
+	// Identical delivery/latency evidence; the other model's multi-turn
+	// tool-loop rate is lower, so it must rank below DeepSeek.
 	let ds_verification = verification(VerificationStatus::Passing, 100, 99, Some(0.96), Some(2_000));
-	let glm_verification = verification(VerificationStatus::Passing, 100, 99, Some(0.70), Some(2_000));
+	let other_verification = verification(VerificationStatus::Passing, 100, 99, Some(0.70), Some(2_000));
 	let ds_score = ranking_score(&deepseek, Some(&ds_verification)).expect("deepseek ranks");
-	let glm_score = ranking_score(&glm, Some(&glm_verification)).expect("glm ranks");
-	assert!(ds_score > glm_score, "deepseek {ds_score} must beat glm {glm_score}");
+	let other_score = ranking_score(&other, Some(&other_verification)).expect("gpt-oss ranks");
+	assert!(ds_score > other_score, "deepseek {ds_score} must beat gpt-oss {other_score}");
+}
+
+#[test]
+fn deprecated_model_never_ranks_even_when_passing() {
+	// glm-5.3-flash is delisted upstream: deprecated ids resolve but are never
+	// offered, so a passing record cannot rank them back into the picker.
+	let glm = record(GLM);
+	let policy = ModelPolicy::default_policy();
+	assert_eq!(policy.status_for(&glm.id), ModelStatus::Deprecated);
+	assert!(!policy.is_primary_agent_eligible(&glm.id));
+	let verification = verification(VerificationStatus::Passing, 100, 100, Some(0.99), Some(1_000));
+	assert_eq!(ranking_score(&glm, Some(&verification)), None);
 }
 
 #[test]

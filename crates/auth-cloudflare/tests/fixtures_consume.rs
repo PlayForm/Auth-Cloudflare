@@ -151,13 +151,15 @@ fn gpt_oss_fixture_normalizes_to_available() {
 fn the_three_fixtures_exercise_the_three_policy_statuses() {
 	let policy = ModelPolicy::default_policy();
 	let deepseek = policy.status_for("@cf/deepseek-ai/deepseek-v4.1-flash-1017");
+	// glm-5.3-flash was the experimental fixture until Cloudflare delisted it;
+	// the fixture now demonstrates the deprecated status.
 	let glm = policy.status_for("@cf/zai-org/glm-5.3-flash");
 	let guard = policy.status_for("@cf/meta/llama-guard-3-8b");
 	assert_eq!(deepseek, ModelStatus::Recommended);
-	assert_eq!(glm, ModelStatus::Experimental);
+	assert_eq!(glm, ModelStatus::Deprecated);
 	assert_eq!(guard, ModelStatus::Hidden);
 	// The three statuses are pairwise distinct - the fixtures really do
-	// cover the recommended/experimental/hidden spectrum.
+	// cover the recommended/deprecated/hidden spectrum.
 	assert_ne!(deepseek, glm);
 	assert_ne!(glm, guard);
 	assert_ne!(deepseek, guard);
