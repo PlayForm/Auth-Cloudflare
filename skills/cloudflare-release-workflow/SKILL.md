@@ -135,6 +135,34 @@ AUTH_CLOUDFLARE_EXPORT_DIR="$PWD/docs" auth-cloudflare catalog export yaml
 AUTH_CLOUDFLARE_EXPORT_DIR="$PWD/docs" auth-cloudflare catalog export markdown
 ```
 
+## macOS legs: the runner label can silently cancel the whole matrix
+
+`macos-14` is retired for this account. GitHub cancels those jobs one second
+after they start, with **zero steps executed**, and the only trace is the
+check-run annotation `The configuration 'macos-14-arm64-us-default' is not
+supported` (`gh api repos/OWNER/REPO/check-runs/<job-id>/annotations`). The run
+then ends `cancelled` with the Linux legs green and `Finalize` skipped, so the
+release ships two targets out of four. The supported arm64 image is
+`macos-15` (probed: `macos-15` and `macos-15-intel` start, `macos-14` does
+not); the x86_64 leg cross-compiles from it.
+
+When a matrix leg cannot run at all, rebuild that target from the TAGGED
+source and attach it by hand - the release must not stay partial:
+
+```sh
+rustup target add x86_64-apple-darwin
+cargo build --release -p auth-cloudflare -p auth-hermes-cloudflare --target <target>
+# package exactly as Build.yml does: two tarballs + shasum -a 256 per target
+gh release upload Cloudflare/v<v> <assets> --clobber
+```
+
+Then replicate Finalize: consolidate the four per-target `SHA256SUMS-<t>.txt`
+assets into `plugins/auth-hermes-cloudflare/SHA256SUMS.txt` (see the
+PLAYFORM_RELEASE_PAT section for the exact format), commit and push the child,
+and float the parent gitlink. `download.sh` strips whitespace before comparing,
+so LF/CRLF does not matter, but the three-way check (child `BINARY_VERSION` ==
+in-tree header == tag version) does.
+
 ## ureq must stay 2.x
 
 `ureq` 3.x renamed the `tls` feature (and reshaped `Error::Status`), so a
