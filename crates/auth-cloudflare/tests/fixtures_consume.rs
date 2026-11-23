@@ -81,15 +81,18 @@ fn llama_guard_fixture_normalizes_to_hidden_safety() {
 }
 
 #[test]
-fn deepseek_pro_fixture_normalizes_to_recommended() {
+fn deepseek_pro_fixture_normalizes_to_deprecated() {
+	// The premium-reasoning fixture is a delisted model: pricing and limits
+	// still parse (the fixture keeps its recorded rates), but the published
+	// status is deprecated and it is never offered.
 	let record = normalize(DEEPSEEK_PRO);
 	assert_eq!(record.id, "@cf/deepseek-ai/deepseek-v4-pro-0813");
 	assert_eq!(record.publisher, "deepseek-ai");
 	assert_eq!(record.role, ModelRole::CodingAgent);
-	assert_eq!(record.visibility, Visibility::Available);
+	assert_eq!(record.visibility, Visibility::Deprecated);
 	assert_eq!(record.capabilities.tools, CapabilityState::Confirmed);
 	assert_eq!(record.limits.context_tokens, Some(1_048_576));
-	assert!(record.eligible_for_primary_picker());
+	assert!(!record.eligible_for_primary_picker());
 	assert!(!record.is_default());
 
 	let input = record.pricing.input.expect("input price present");
@@ -99,20 +102,22 @@ fn deepseek_pro_fixture_normalizes_to_recommended() {
 	assert!((output - 3.96).abs() < 1e-9, "output price {output} != 3.96");
 
 	let policy = ModelPolicy::default_policy();
-	assert_eq!(policy.status_for(&record.id), ModelStatus::Recommended);
-	assert!(policy.is_primary_agent_eligible(&record.id));
+	assert_eq!(policy.status_for(&record.id), ModelStatus::Deprecated);
+	assert!(!policy.is_primary_agent_eligible(&record.id));
 }
 
 #[test]
-fn kimi_fixture_normalizes_to_recommended() {
+fn kimi_fixture_normalizes_to_deprecated() {
+	// The premium-coding fixture is a delisted model: recorded rates and limits
+	// still parse, the published status is deprecated, it is never offered.
 	let record = normalize(KIMI);
 	assert_eq!(record.id, "@cf/moonshotai/kimi-k2.7-code");
 	assert_eq!(record.publisher, "moonshotai");
 	assert_eq!(record.role, ModelRole::CodingAgent);
-	assert_eq!(record.visibility, Visibility::Available);
+	assert_eq!(record.visibility, Visibility::Deprecated);
 	assert_eq!(record.capabilities.tools, CapabilityState::Confirmed);
 	assert_eq!(record.limits.context_tokens, Some(262_144));
-	assert!(record.eligible_for_primary_picker());
+	assert!(!record.eligible_for_primary_picker());
 	assert!(!record.is_default());
 
 	let input = record.pricing.input.expect("input price present");
@@ -122,8 +127,8 @@ fn kimi_fixture_normalizes_to_recommended() {
 	assert!((output - 4.0).abs() < 1e-9, "output price {output} != 4.0");
 
 	let policy = ModelPolicy::default_policy();
-	assert_eq!(policy.status_for(&record.id), ModelStatus::Recommended);
-	assert!(policy.is_primary_agent_eligible(&record.id));
+	assert_eq!(policy.status_for(&record.id), ModelStatus::Deprecated);
+	assert!(!policy.is_primary_agent_eligible(&record.id));
 }
 
 #[test]
